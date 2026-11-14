@@ -1,0 +1,22 @@
+# Perfil de produção: tudo vem de variáveis de ambiente, sem valores padrão.
+spring:
+  docker:
+    compose:
+      enabled: false
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+
+pluggy:
+  owners:
+    - name: marcelo
+      client-id: ${PLUGGY_MARCELO_CLIENT_ID:}
+      client-secret: ${PLUGGY_MARCELO_CLIENT_SECRET:}
+      item-ids:
+        - SUBSTITUA-PELO-ITEM-ID-DO-MARCELO
+    - name: luana
+      client-id: ${PLUGGY_LUANA_CLIENT_ID:}
+      client-secret: ${PLUGGY_LUANA_CLIENT_SECRET:}
+      item-ids:
+        - SUBSTITUA-PELO-ITEM-ID-DA-LUANA

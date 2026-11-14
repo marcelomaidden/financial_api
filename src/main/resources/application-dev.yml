@@ -1,0 +1,16 @@
+# Perfil de desenvolvimento local.
+# Variáveis Pluggy usam default vazio (${VAR:}) para que a ausência falhe na validação
+# (@NotBlank) em vez de passar como o texto literal do placeholder.
+# O banco é o MySQL do compose.yaml: o suporte a Docker Compose do Spring Boot
+# sobe o contêiner e preenche a conexão automaticamente.
+pluggy:
+  owners:
+    - name: marcelo
+      client-id: ${PLUGGY_MARCELO_CLIENT_ID:}
+      client-secret: ${PLUGGY_MARCELO_CLIENT_SECRET:}
+      item-ids: ${PLUGGY_MARCELO_ITEM_IDS:}
+    - name: luana
+      client-id: ${PLUGGY_LUANA_CLIENT_ID:teste}
+      client-secret: ${PLUGGY_LUANA_CLIENT_SECRET:teste}
+      item-ids:
+        - SUBSTITUA-PELO-ITEM-ID-DA-LUANA
