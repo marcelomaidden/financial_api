@@ -26,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cglib.core.Local;
 import org.springframework.stereotype.Service;
 
 /**
@@ -66,9 +67,9 @@ public class SummaryService {
 		this.clock = clock;
 	}
 
-	public SummaryResponse getSummary() {
-		LocalDate today = LocalDate.now(clock);
-		LocalDate monthStart = today.withDayOfMonth(1);
+	public SummaryResponse getSummary(LocalDate dateFrom, LocalDate dateTo) {
+		LocalDate today = dateFrom == null ? LocalDate.now(clock) : dateFrom;
+		LocalDate monthStart = dateTo == null ? today.withDayOfMonth(1) : dateTo;
 
 		Map<String, List<IncomeAccount>> availableDetail = new LinkedHashMap<>();
 		Map<String, List<IncomeTransaction>> transactionsDetail = new LinkedHashMap<>();

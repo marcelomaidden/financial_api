@@ -41,8 +41,11 @@ public class FinancialDataController {
 	}
 
 	@GetMapping("/summary")
-	public SummaryResponse summary() {
-		return summaryService.getSummary();
+	public SummaryResponse summary(
+			@RequestParam(required = false) LocalDate dateFrom,
+			@RequestParam(required = false) LocalDate dateTo
+	) {
+		return summaryService.getSummary(dateFrom, dateTo);
 	}
 
 	@GetMapping("/accounts")

@@ -1,7 +1,5 @@
 package com.mfaraujo.financialapi.client;
 
-import java.time.LocalDate;
-
 import com.mfaraujo.financialapi.client.dto.PluggyAccount;
 import com.mfaraujo.financialapi.client.dto.PluggyBill;
 import com.mfaraujo.financialapi.client.dto.PluggyCursorPage;
@@ -25,8 +23,8 @@ public interface PluggyApi {
 	@GetExchange("/v2/transactions")
 	PluggyCursorPage<PluggyTransaction> listTransactions(
 			@RequestParam("accountId") String accountId,
-			@RequestParam(name = "dateFrom", required = false) LocalDate dateFrom,
-			@RequestParam(name = "dateTo", required = false) LocalDate dateTo,
+			@RequestParam(name = "dateFrom", required = false) String dateFrom,
+			@RequestParam(name = "dateTo", required = false) String dateTo,
 			@RequestParam(name = "after", required = false) String after);
 
 	@GetExchange("/bills")

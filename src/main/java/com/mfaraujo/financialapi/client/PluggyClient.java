@@ -1,6 +1,7 @@
 package com.mfaraujo.financialapi.client;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -49,7 +50,11 @@ public class PluggyClient {
 
 	public PluggyCursorPage<PluggyTransaction> listTransactions(String owner, String accountId, LocalDate dateFrom,
 			LocalDate dateTo, String after) {
-		return api(owner).listTransactions(accountId, dateFrom, dateTo, after);
+		return api(owner).listTransactions(accountId, formatDate(dateFrom), formatDate(dateTo), after);
+	}
+
+	private static String formatDate(LocalDate date) {
+		return date == null ? null : DateTimeFormatter.ISO_LOCAL_DATE.format(date);
 	}
 
 	public PluggyPage<PluggyBill> listBills(String owner, String accountId, Integer page, Integer pageSize) {

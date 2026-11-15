@@ -58,7 +58,7 @@ class SummaryServiceTest {
 		page("marcelo", "m2");
 		page("luana", "l1", tx("t2", "Salário", "1000", "BRL", "CREDIT"));
 
-		SummaryResponse summary = service.getSummary();
+		SummaryResponse summary = service.getSummary(null, null);
 
 		assertThat(summary.partial()).isFalse();
 		assertThat(summary.errors()).isEmpty();
@@ -77,7 +77,7 @@ class SummaryServiceTest {
 				account("u1", "Dólar", "BANK", "300", "USD")));
 		page("marcelo", "m1");
 
-		SummaryResponse summary = service.getSummary();
+		SummaryResponse summary = service.getSummary(null, null);
 
 		assertThat(summary.incomes().available().detail().get("marcelo")).extracting("id").containsExactly("m1");
 		assertThat(summary.incomes().available().total().value()).isEqualByComparingTo("500");
@@ -89,7 +89,7 @@ class SummaryServiceTest {
 		page("marcelo", "m1", tx("in", "PIX", "50", "BRL", "CREDIT"), tx("out", "Mercado", "30", "BRL", "DEBIT"),
 				tx("usd", "Exterior", "10", "USD", "CREDIT"));
 
-		SummaryResponse summary = service.getSummary();
+		SummaryResponse summary = service.getSummary(null, null);
 
 		assertThat(summary.incomes().transactions().detail().get("marcelo")).extracting("id").containsExactly("in");
 		assertThat(summary.incomes().transactions().total().value()).isEqualByComparingTo("50");
@@ -105,7 +105,7 @@ class SummaryServiceTest {
 				.thenReturn(new TransactionsResponse("marcelo", "m1",
 						List.of(tx("t2", "B", "5", "BRL", "CREDIT")), null));
 
-		SummaryResponse summary = service.getSummary();
+		SummaryResponse summary = service.getSummary(null, null);
 
 		assertThat(summary.incomes().transactions().detail().get("marcelo")).extracting("id")
 				.containsExactly("t1", "t2");
@@ -118,7 +118,7 @@ class SummaryServiceTest {
 		page("marcelo", "m1");
 		page("luana", "l1", tx("t1", "PIX Recebido de Marcelo", "300", "BRL", "CREDIT"));
 
-		SummaryResponse summary = service.getSummary();
+		SummaryResponse summary = service.getSummary(null, null);
 
 		assertThat(summary.incomes().transactions().detail().get("luana")).extracting("id").containsExactly("t1");
 	}
@@ -129,7 +129,7 @@ class SummaryServiceTest {
 		accounts(new OwnerAccounts("luana", List.of(), error), owner("marcelo", bank("m1", "Nubank", "500")));
 		page("marcelo", "m1", tx("t1", "PIX", "20", "BRL", "CREDIT"));
 
-		SummaryResponse summary = service.getSummary();
+		SummaryResponse summary = service.getSummary(null, null);
 
 		assertThat(summary.partial()).isTrue();
 		assertThat(summary.errors()).singleElement().satisfies(e -> {
@@ -148,7 +148,7 @@ class SummaryServiceTest {
 				.thenThrow(new PluggyException("marcelo", HttpStatus.INTERNAL_SERVER_ERROR, "falhou"));
 		page("luana", "l1", tx("t1", "PIX", "20", "BRL", "CREDIT"));
 
-		SummaryResponse summary = service.getSummary();
+		SummaryResponse summary = service.getSummary(null, null);
 
 		assertThat(summary.partial()).isTrue();
 		assertThat(summary.errors()).singleElement().satisfies(e -> assertThat(e.owner()).isEqualTo("marcelo"));
@@ -162,7 +162,7 @@ class SummaryServiceTest {
 	void propagatesFailureWhenAllOwnersFail() {
 		when(accountService.getAccounts(null)).thenThrow(new AllOwnersFailedException());
 
-		assertThatThrownBy(() -> service.getSummary()).isInstanceOf(AllOwnersFailedException.class);
+		assertThatThrownBy(() -> service.getSummary(null, null)).isInstanceOf(AllOwnersFailedException.class);
 	}
 
 	private void accounts(OwnerAccounts... owners) {
