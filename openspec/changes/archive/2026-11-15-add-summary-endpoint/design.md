@@ -12,7 +12,7 @@
 
 **Non-Goals:**
 - Sem cache, persistência nem conversão de moeda.
-- Sem filtro por dono nem período configurável nesta etapa.
+- Sem filtro por dono nesta etapa.
 - Sem `expenses` (cartões de crédito).
 - Sem mudança no `OwnerFanOut`.
 
@@ -28,7 +28,7 @@ Contas e transações com `currencyCode` diferente de `BRL` (ou nulo) ficam fora
 `balance` e `amount` seguem o decimal que a Pluggy devolve (por exemplo `19.99`). Os totais somam esses valores.
 
 **4. Período.**
-`transactions` cobre do dia 1 do mês corrente até hoje, no fuso `America/Sao_Paulo`. Percorre todas as páginas via `after`/`nextCursor`.
+`GET /summary` aceita `dateFrom` e `dateTo` opcionais (`yyyy-mm-dd`). `dateTo` assume hoje, no fuso `America/Sao_Paulo`. `dateFrom` assume o dia 1 do mês de `dateTo`. Sem parâmetros, o período é o mês corrente até hoje. O período vale só para `transactions`, e `available` continua sendo o saldo atual. Percorre todas as páginas via `after`/`nextCursor`. Cada transação traz `date`, a data devolvida pela Pluggy.
 
 **5. Transferências entre donos.**
 Não são detectadas nem excluídas. Contam como entrada em quem recebeu.
@@ -40,7 +40,7 @@ A resposta traz `errors` (lista de `owner`, `status`, `message`) e `partial`.
 - Se todos os donos falharem na consulta de contas, `OwnerFanOut` já lança `AllOwnersFailedException` (502), e o resumo não repete essa regra.
 
 **7. Montagem em um `SummaryService`.**
-Serviço novo que chama `AccountService.getAccounts(null)`, filtra, consulta as transações do mês de cada conta `BANK` e agrega por dono. O controller injeta o `SummaryService` e só delega. DTOs novos em `resource/dto`.
+Serviço novo que chama `AccountService.getAccounts(null)`, filtra, consulta as transações do período de cada conta `BANK` e agrega por dono. O controller injeta o `SummaryService` e só delega. DTOs novos em `resource/dto`.
 
 ## Risks / Trade-offs
 

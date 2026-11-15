@@ -1,10 +1,10 @@
-# Spec Delta
+# financial-summary Specification
 
 ## Purpose
 
-Entrega um resumo consolidado do que os donos têm em contas bancárias e do que entrou no mês, em BRL, detalhado por dono.
+Entrega um resumo consolidado do que os donos têm em contas bancárias e do que entrou no período, em BRL, detalhado por dono.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Resumo de incomes
 O sistema SHALL expor `GET /summary` retornando a seção `incomes` com `available` e `transactions`. Cada parte SHALL conter `total`, com `value` e `currencyCode`, e `detail`, um mapa de nome do dono para a lista dele.
@@ -28,15 +28,27 @@ O sistema SHALL compor `incomes.available` apenas com contas `BANK` em BRL. Cada
 - **WHEN** um dono tem conta `BANK` em moeda diferente de BRL
 - **THEN** essa conta não aparece no detalhe nem entra no total
 
-### Requirement: Transactions lista entradas do mês
-O sistema SHALL compor `incomes.transactions` com transações de tipo `CREDIT` em BRL, das contas `BANK`, do dia 1 do mês corrente até hoje (fuso `America/Sao_Paulo`). Cada transação SHALL ter `id`, `description`, `amount`, `currencyCode` e `accountId`, e `total.value` SHALL somar o `amount` delas. O sistema SHALL percorrer todas as páginas de cada conta.
+### Requirement: Transactions lista entradas do período
+O sistema SHALL compor `incomes.transactions` com transações de tipo `CREDIT` em BRL, das contas `BANK`, dentro do período pedido. O período SHALL ser definido pelos parâmetros opcionais `dateFrom` e `dateTo` (`yyyy-mm-dd`). Sem `dateTo`, o sistema SHALL usar a data de hoje no fuso `America/Sao_Paulo`. Sem `dateFrom`, o sistema SHALL usar o dia 1 do mês de `dateTo`. Cada transação SHALL ter `id`, `description`, `amount`, `currencyCode`, `date` e `accountId`, e `total.value` SHALL somar o `amount` delas. O sistema SHALL percorrer todas as páginas de cada conta. O período SHALL afetar só `transactions`, e `available` SHALL continuar sendo o saldo atual.
 
-#### Scenario: Entrada do mês
-- **WHEN** uma conta `BANK` tem uma transação `CREDIT` no mês corrente
-- **THEN** a transação aparece no detalhe do dono e entra em `transactions.total`
+#### Scenario: Entrada do mês corrente
+- **WHEN** o cliente chama `GET /summary` sem `dateFrom` e `dateTo`, e uma conta `BANK` tem uma transação `CREDIT` no mês corrente
+- **THEN** a transação aparece no detalhe do dono, com `date`, e entra em `transactions.total`
 
-#### Scenario: Saída ou fora do mês
-- **WHEN** uma transação é `DEBIT` ou é de outro mês
+#### Scenario: Período informado
+- **WHEN** o cliente chama `GET /summary` com `dateFrom` e `dateTo`
+- **THEN** o sistema consulta as transações de `dateFrom` a `dateTo`
+
+#### Scenario: Só dateFrom
+- **WHEN** o cliente informa `dateFrom` e não informa `dateTo`
+- **THEN** o período vai de `dateFrom` até hoje
+
+#### Scenario: Só dateTo
+- **WHEN** o cliente informa `dateTo` e não informa `dateFrom`
+- **THEN** o período vai do dia 1 do mês de `dateTo` até `dateTo`
+
+#### Scenario: Saída ou fora do período
+- **WHEN** uma transação é `DEBIT` ou está fora do período
 - **THEN** ela não aparece em `incomes.transactions`
 
 #### Scenario: Transferência entre donos
