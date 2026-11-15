@@ -23,6 +23,8 @@ import com.mfaraujo.financialapi.resource.dto.OwnersResponse;
 import com.mfaraujo.financialapi.resource.dto.SummaryResponse;
 import com.mfaraujo.financialapi.resource.dto.TransactionResponse;
 import com.mfaraujo.financialapi.resource.dto.TransactionsResponse;
+import com.mfaraujo.financialapi.service.enums.AccountTypesEnum;
+import com.mfaraujo.financialapi.service.enums.TransactionTypesEnum;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -54,9 +56,9 @@ class SummaryServiceTest {
 	void sumsBalancesAndCreditsOfBankAccountsInBrl() {
 		accounts(owner("marcelo", bank("m1", "Nubank", "500.50"), bank("m2", "Itaú", "100")),
 				owner("luana", bank("l1", "Inter", "200")));
-		page("marcelo", "m1", tx("t1", "PIX Recebido", "19.99", "BRL", "CREDIT"));
+		page("marcelo", "m1", tx("t1", "PIX Recebido", "19.99", "BRL", TransactionTypesEnum.CREDIT));
 		page("marcelo", "m2");
-		page("luana", "l1", tx("t2", "Salário", "1000", "BRL", "CREDIT"));
+		page("luana", "l1", tx("t2", "Salário", "1000", "BRL", TransactionTypesEnum.CREDIT));
 
 		SummaryResponse summary = service.getSummary(null, null);
 
@@ -73,8 +75,8 @@ class SummaryServiceTest {
 
 	@Test
 	void ignoresNonBankAccountsAndNonBrlAccounts() {
-		accounts(owner("marcelo", bank("m1", "Nubank", "500"), account("c1", "Cartão", "CREDIT", "999", "BRL"),
-				account("u1", "Dólar", "BANK", "300", "USD")));
+		accounts(owner("marcelo", bank("m1", "Nubank", "500"), account("c1", "Cartão", AccountTypesEnum.CREDIT, "999", "BRL"),
+				account("u1", "Dólar", AccountTypesEnum.BANK, "300", "USD")));
 		page("marcelo", "m1");
 
 		SummaryResponse summary = service.getSummary(null, null);
@@ -86,8 +88,8 @@ class SummaryServiceTest {
 	@Test
 	void keepsOnlyBrlCreditTransactions() {
 		accounts(owner("marcelo", bank("m1", "Nubank", "0")));
-		page("marcelo", "m1", tx("in", "PIX", "50", "BRL", "CREDIT"), tx("out", "Mercado", "30", "BRL", "DEBIT"),
-				tx("usd", "Exterior", "10", "USD", "CREDIT"));
+		page("marcelo", "m1", tx("in", "PIX", "50", "BRL", TransactionTypesEnum.CREDIT), tx("out", "Mercado", "30", "BRL", TransactionTypesEnum.DEBIT),
+				tx("usd", "Exterior", "10", "USD", TransactionTypesEnum.CREDIT));
 
 		SummaryResponse summary = service.getSummary(null, null);
 
@@ -100,10 +102,10 @@ class SummaryServiceTest {
 		accounts(owner("marcelo", bank("m1", "Nubank", "0")));
 		when(transactionService.getTransactions("marcelo", "m1", MONTH_START, TODAY, null))
 				.thenReturn(new TransactionsResponse("marcelo", "m1",
-						List.of(tx("t1", "A", "10", "BRL", "CREDIT")), "cursor-2"));
+						List.of(tx("t1", "A", "10", "BRL", TransactionTypesEnum.CREDIT)), "cursor-2"));
 		when(transactionService.getTransactions("marcelo", "m1", MONTH_START, TODAY, "cursor-2"))
 				.thenReturn(new TransactionsResponse("marcelo", "m1",
-						List.of(tx("t2", "B", "5", "BRL", "CREDIT")), null));
+						List.of(tx("t2", "B", "5", "BRL", TransactionTypesEnum.CREDIT)), null));
 
 		SummaryResponse summary = service.getSummary(null, null);
 
@@ -116,7 +118,7 @@ class SummaryServiceTest {
 	void keepsTransferBetweenOwnersAsIncome() {
 		accounts(owner("marcelo", bank("m1", "Nubank", "0")), owner("luana", bank("l1", "Inter", "0")));
 		page("marcelo", "m1");
-		page("luana", "l1", tx("t1", "PIX Recebido de Marcelo", "300", "BRL", "CREDIT"));
+		page("luana", "l1", tx("t1", "PIX Recebido de Marcelo", "300", "BRL", TransactionTypesEnum.CREDIT));
 
 		SummaryResponse summary = service.getSummary(null, null);
 
@@ -127,7 +129,7 @@ class SummaryServiceTest {
 	void dropsOwnerWhoseAccountsFailAndKeepsTheOther() {
 		ApiError error = new ApiError(502, "Bad Gateway", "Erro ao consultar a Pluggy");
 		accounts(new OwnerAccounts("luana", List.of(), error), owner("marcelo", bank("m1", "Nubank", "500")));
-		page("marcelo", "m1", tx("t1", "PIX", "20", "BRL", "CREDIT"));
+		page("marcelo", "m1", tx("t1", "PIX", "20", "BRL", TransactionTypesEnum.CREDIT));
 
 		SummaryResponse summary = service.getSummary(null, null);
 
@@ -146,7 +148,7 @@ class SummaryServiceTest {
 		accounts(owner("marcelo", bank("m1", "Nubank", "500")), owner("luana", bank("l1", "Inter", "200")));
 		when(transactionService.getTransactions(eq("marcelo"), eq("m1"), any(), any(), any()))
 				.thenThrow(new PluggyException("marcelo", HttpStatus.INTERNAL_SERVER_ERROR, "falhou"));
-		page("luana", "l1", tx("t1", "PIX", "20", "BRL", "CREDIT"));
+		page("luana", "l1", tx("t1", "PIX", "20", "BRL", TransactionTypesEnum.CREDIT));
 
 		SummaryResponse summary = service.getSummary(null, null);
 
@@ -179,15 +181,15 @@ class SummaryServiceTest {
 	}
 
 	private static AccountResponse bank(String id, String name, String balance) {
-		return account(id, name, "BANK", balance, "BRL");
+		return account(id, name, AccountTypesEnum.BANK, balance, "BRL");
 	}
 
-	private static AccountResponse account(String id, String name, String type, String balance, String currency) {
+	private static AccountResponse account(String id, String name, AccountTypesEnum type, String balance, String currency) {
 		return new AccountResponse(id, "item", type, null, name, null, new BigDecimal(balance), currency);
 	}
 
 	private static TransactionResponse tx(String id, String description, String amount, String currency,
-			String type) {
+										  TransactionTypesEnum type) {
 		return new TransactionResponse(id, Instant.parse("2026-11-10T12:00:00Z").atZone(ZONE).toOffsetDateTime(),
 				description, new BigDecimal(amount), currency, type, "POSTED", null);
 	}

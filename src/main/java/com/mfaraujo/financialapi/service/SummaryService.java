@@ -26,8 +26,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cglib.core.Local;
 import org.springframework.stereotype.Service;
+import static com.mfaraujo.financialapi.service.enums.CurrencyEnum.BRL;
 
 /**
  * Resumo de {@code incomes}: saldo das contas {@code BANK} e entradas
@@ -39,12 +39,6 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class SummaryService {
-
-	static final String BANK = "BANK";
-
-	static final String CREDIT = "CREDIT";
-
-	static final String BRL = "BRL";
 
 	private static final ZoneId ZONE = ZoneId.of("America/Sao_Paulo");
 
@@ -68,8 +62,8 @@ public class SummaryService {
 	}
 
 	public SummaryResponse getSummary(LocalDate dateFrom, LocalDate dateTo) {
-		LocalDate today = dateFrom == null ? LocalDate.now(clock) : dateFrom;
-		LocalDate monthStart = dateTo == null ? today.withDayOfMonth(1) : dateTo;
+		LocalDate today = dateTo == null ? LocalDate.now(clock) : dateTo;
+		LocalDate monthStart = dateFrom == null ? today.withDayOfMonth(1) : dateFrom;
 
 		Map<String, List<IncomeAccount>> availableDetail = new LinkedHashMap<>();
 		Map<String, List<IncomeTransaction>> transactionsDetail = new LinkedHashMap<>();
@@ -80,12 +74,9 @@ public class SummaryService {
 				errors.add(toError(owner.owner(), owner.error()));
 				continue;
 			}
-			List<AccountResponse> bankAccounts = owner.accounts().stream()
-					.filter(a -> BANK.equals(a.type()) && BRL.equals(a.currencyCode()) && a.balance() != null)
-					.toList();
-			availableDetail.put(owner.owner(), bankAccounts.stream()
-					.map(a -> new IncomeAccount(a.id(), a.name(), a.balance(), a.currencyCode()))
-					.toList());
+			List<AccountResponse> bankAccounts = bankAccounts(owner);
+			availableDetail.put(owner.owner(), toIncomeAccounts(bankAccounts));
+
 			try {
 				transactionsDetail.put(owner.owner(), incomesOf(owner.owner(), bankAccounts, monthStart, today));
 			}
@@ -98,12 +89,34 @@ public class SummaryService {
 			}
 		}
 
-		IncomesSummary incomes = new IncomesSummary(
-				new SummarySection<>(brl(availableDetail.values().stream().flatMap(List::stream)
-						.map(IncomeAccount::balance).toList()), availableDetail),
-				new SummarySection<>(brl(transactionsDetail.values().stream().flatMap(List::stream)
-						.map(IncomeTransaction::amount).toList()), transactionsDetail));
-		return new SummaryResponse(incomes, !errors.isEmpty(), errors);
+		return new SummaryResponse(incomesSummary(availableDetail, transactionsDetail),
+				                   !errors.isEmpty(), errors);
+	}
+
+	private List<AccountResponse> bankAccounts(OwnerAccounts owner) {
+		return owner.accounts().stream()
+				.filter(AccountResponse::isBrlBankAccount)
+				.toList();
+	}
+
+	private List<IncomeAccount> toIncomeAccounts(List<AccountResponse> bankAccounts) {
+		return bankAccounts.stream()
+				.map(a -> new IncomeAccount(a.id(), a.name(), a.balance(), a.currencyCode()))
+				.toList();
+	}
+
+	/** Monta o resumo de entradas e transações do período de todas as contas do dono. */
+	private IncomesSummary incomesSummary(Map<String, List<IncomeAccount>> availableDetail,
+			Map<String, List<IncomeTransaction>> transactionsDetail) {
+		Money totalBalance = brl(availableDetail.values().stream().flatMap(List::stream)
+				.map(IncomeAccount::balance).toList());
+
+		Money totalTransactions = brl(transactionsDetail.values().stream().flatMap(List::stream)
+				.map(IncomeTransaction::amount).toList());
+
+		return new IncomesSummary(
+				new SummarySection<>(totalBalance, availableDetail),
+				new SummarySection<>(totalTransactions, transactionsDetail));
 	}
 
 	/** Entradas do período de todas as contas do dono. Qualquer falha descarta o dono inteiro. */
@@ -115,9 +128,8 @@ public class SummaryService {
 			do {
 				TransactionsResponse page = transactionService.getTransactions(owner, account.id(), from, to, after);
 				for (TransactionResponse tx : page.transactions()) {
-					if (CREDIT.equals(tx.type()) && BRL.equals(tx.currencyCode()) && tx.amount() != null) {
-						incomes.add(new IncomeTransaction(tx.id(), tx.description(), tx.amount(), tx.currencyCode(),
-								account.id()));
+					if (tx.isBrazilianCredit()) {
+						incomes.add(buildIncomeTransaction(tx, account.id()));
 					}
 				}
 				after = page.nextCursor();
@@ -127,8 +139,13 @@ public class SummaryService {
 		return incomes;
 	}
 
+	private IncomeTransaction buildIncomeTransaction(TransactionResponse tx, String accountId) {
+		return new IncomeTransaction(tx.id(), tx.description(), tx.amount(),
+				                    tx.currencyCode(), tx.date(), accountId);
+	}
+
 	private static Money brl(List<BigDecimal> values) {
-		return new Money(values.stream().reduce(BigDecimal.ZERO, BigDecimal::add), BRL);
+		return new Money(values.stream().reduce(BigDecimal.ZERO, BigDecimal::add), BRL.getType());
 	}
 
 	private static SummaryError toError(String owner, ApiError error) {
