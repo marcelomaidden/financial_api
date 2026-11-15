@@ -139,8 +139,8 @@ class SummaryServiceTest {
 		service.getSummary(null, null);
 
 		verifyIncomesPeriod(LocalDate.of(2026, 11, 1), TODAY);
-		assertThat(expensesPeriod()).isEqualTo(new ExpensesPeriod(LocalDate.of(2026, 11, 1),
-				LocalDate.of(2026, 11, 30), LocalDate.of(2026, 10, 1), TODAY));
+		assertThat(expensesPeriod())
+				.isEqualTo(new ExpensesPeriod(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 30), TODAY));
 	}
 
 	@Test
@@ -151,7 +151,7 @@ class SummaryServiceTest {
 		service.getSummary(from, null);
 
 		verifyIncomesPeriod(from, TODAY);
-		assertThat(expensesPeriod()).isEqualTo(new ExpensesPeriod(from, LocalDate.of(2026, 11, 30), from, TODAY));
+		assertThat(expensesPeriod()).isEqualTo(new ExpensesPeriod(from, LocalDate.of(2026, 11, 30), TODAY));
 	}
 
 	@Test
@@ -162,8 +162,8 @@ class SummaryServiceTest {
 		service.getSummary(null, to);
 
 		verifyIncomesPeriod(LocalDate.of(2026, 9, 1), to);
-		assertThat(expensesPeriod()).isEqualTo(new ExpensesPeriod(LocalDate.of(2026, 9, 1),
-				LocalDate.of(2026, 9, 30), LocalDate.of(2026, 8, 1), to));
+		assertThat(expensesPeriod())
+				.isEqualTo(new ExpensesPeriod(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30), TODAY));
 	}
 
 	@Test
@@ -176,7 +176,16 @@ class SummaryServiceTest {
 
 		verifyIncomesPeriod(from, to);
 		assertThat(expensesPeriod())
-				.isEqualTo(new ExpensesPeriod(from, LocalDate.of(2026, 9, 30), from, to));
+				.isEqualTo(new ExpensesPeriod(from, LocalDate.of(2026, 9, 30), TODAY));
+	}
+
+	@Test
+	void purchasesReferenceDateIsAlwaysTodayRegardlessOfTheRequestedDates() {
+		accounts(owner("marcelo"));
+
+		service.getSummary(LocalDate.of(2026, 8, 5), LocalDate.of(2026, 9, 20));
+
+		assertThat(expensesPeriod().today()).isEqualTo(TODAY);
 	}
 
 	@Test

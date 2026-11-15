@@ -57,7 +57,7 @@ public class SummaryService {
 		LocalDate monthStart = to.withDayOfMonth(1);
 		LocalDate from = dateFrom == null ? monthStart : dateFrom;
 		ExpensesPeriod expensesPeriod = new ExpensesPeriod(from, YearMonth.from(to).atEndOfMonth(),
-				dateFrom == null ? monthStart.minusMonths(1) : dateFrom, to);
+				LocalDate.now(clock));
 
 		List<SummaryError> errors = new ArrayList<>();
 		List<OwnerAccountsResult> owners = new ArrayList<>();

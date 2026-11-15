@@ -1,5 +1,6 @@
 package com.mfaraujo.financialapi.client;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
@@ -51,6 +52,12 @@ public class PluggyClient {
 	public PluggyCursorPage<PluggyTransaction> listTransactions(String owner, String accountId, LocalDate dateFrom,
 			LocalDate dateTo, String after) {
 		return api(owner).listTransactions(accountId, formatDate(dateFrom), formatDate(dateTo), after);
+	}
+
+	public PluggyCursorPage<PluggyTransaction> listTransactionsCreatedSince(String owner, String accountId,
+			Instant createdAtFrom, String after) {
+		return api(owner).listTransactionsCreatedSince(accountId, DateTimeFormatter.ISO_INSTANT.format(createdAtFrom),
+				after);
 	}
 
 	private static String formatDate(LocalDate date) {

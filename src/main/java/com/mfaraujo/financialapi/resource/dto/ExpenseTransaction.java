@@ -7,7 +7,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * Compra de cartão ainda sem fatura, no detalhe de {@code expenses.transactions}.
- * {@code amountInAccountCurrency} só aparece quando a moeda da compra não é BRL.
+ * {@code amountInAccountCurrency} só aparece quando a moeda da compra não é BRL, e
+ * {@code installment} só aparece em compra parcelada.
  */
 public record ExpenseTransaction(
 		String id,
@@ -17,5 +18,6 @@ public record ExpenseTransaction(
 		BigDecimal amount,
 		OffsetDateTime date,
 		String category,
-		@JsonInclude(JsonInclude.Include.NON_NULL) BigDecimal amountInAccountCurrency) {
+		@JsonInclude(JsonInclude.Include.NON_NULL) BigDecimal amountInAccountCurrency,
+		@JsonInclude(JsonInclude.Include.NON_NULL) Installment installment) {
 }

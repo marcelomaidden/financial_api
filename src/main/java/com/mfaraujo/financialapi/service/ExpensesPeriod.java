@@ -4,9 +4,8 @@ import java.time.LocalDate;
 
 /**
  * Datas que a seção {@code expenses} usa. As faturas são filtradas pelo vencimento
- * ({@code dueFrom} a {@code dueTo}) e as compras sem fatura pela data da compra
- * ({@code transactionsFrom} a {@code transactionsTo}).
+ * ({@code dueFrom} a {@code dueTo}). As compras sem fatura não usam o período pedido:
+ * a janela delas é a de cada cartão, calculada a partir de {@code today}.
  */
-public record ExpensesPeriod(LocalDate dueFrom, LocalDate dueTo, LocalDate transactionsFrom,
-		LocalDate transactionsTo) {
+public record ExpensesPeriod(LocalDate dueFrom, LocalDate dueTo, LocalDate today) {
 }

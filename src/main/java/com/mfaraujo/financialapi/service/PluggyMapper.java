@@ -28,7 +28,15 @@ final class PluggyMapper {
 		return new Transaction(tx.id(), tx.date(), tx.description(), tx.amount(), tx.currencyCode(),
 				TransactionTypesEnum.fromPluggy(tx.type()), tx.status(), tx.category(),
 				tx.creditCardMetadata() == null ? null : tx.creditCardMetadata().billId(),
-				tx.amountInAccountCurrency());
+				tx.amountInAccountCurrency(), installmentOf(tx.creditCardMetadata()));
+	}
+
+	/** Parcela só quando a Pluggy informa o número e o total. */
+	private static Transaction.Installment installmentOf(PluggyTransaction.CreditCardMetadata metadata) {
+		if (metadata == null || metadata.installmentNumber() == null || metadata.totalInstallments() == null) {
+			return null;
+		}
+		return new Transaction.Installment(metadata.installmentNumber(), metadata.totalInstallments());
 	}
 
 	static Bill toBill(PluggyBill bill) {

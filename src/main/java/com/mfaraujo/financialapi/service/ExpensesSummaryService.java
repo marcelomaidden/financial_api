@@ -1,21 +1,26 @@
 package com.mfaraujo.financialapi.service;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import com.mfaraujo.financialapi.domain.enums.CurrencyEnum;
 import com.mfaraujo.financialapi.domain.model.Account;
 import com.mfaraujo.financialapi.domain.model.Bill;
+import com.mfaraujo.financialapi.domain.model.BillingCycle;
 import com.mfaraujo.financialapi.domain.model.Transaction;
 import com.mfaraujo.financialapi.domain.result.OwnerAccountsResult;
 import com.mfaraujo.financialapi.exception.ApiErrors;
 import com.mfaraujo.financialapi.resource.dto.ApiError;
 import com.mfaraujo.financialapi.resource.dto.ExpenseTransaction;
 import com.mfaraujo.financialapi.resource.dto.ExpensesSummary;
+import com.mfaraujo.financialapi.resource.dto.Installment;
 import com.mfaraujo.financialapi.resource.dto.OwedBill;
 import com.mfaraujo.financialapi.resource.dto.SummaryError;
 import com.mfaraujo.financialapi.resource.dto.SummarySection;
@@ -31,11 +36,23 @@ import org.springframework.stereotype.Service;
  * <li>{@code transactions}: compras ainda sem fatura ({@code DEBIT}, {@code PENDING}
  * e sem {@code billId}).</li>
  * </ul>
+ * As compras de cada cartão são buscadas pela data em que chegaram à Pluggy, numa
+ * janela derivada da fatura mais recente do cartão ({@link BillingCycle}). Sem fatura,
+ * ou com a consulta de faturas falhando, vale a janela padrão.
+ * <p>
  * Recebe apenas donos cuja consulta de contas teve sucesso. Falha nas faturas tira o
  * dono só de {@code owed}, e falha nas compras tira o dono só de {@code transactions}.
  */
 @Service
 public class ExpensesSummaryService {
+
+	/** Dias antes do fechamento anterior em que a janela de chegada das compras começa. */
+	static final int LOWER_SLACK_DAYS = 10;
+
+	/** Dias depois do vencimento da fatura aberta em que a data da compra ainda vale (vencimento em fim de semana). */
+	static final int UPPER_SLACK_DAYS = 5;
+
+	private static final ZoneId ZONE = ZoneId.of("America/Sao_Paulo");
 
 	private static final Logger log = LoggerFactory.getLogger(ExpensesSummaryService.class);
 
@@ -56,14 +73,24 @@ public class ExpensesSummaryService {
 
 		for (OwnerAccountsResult owner : owners) {
 			List<Account> cards = owner.accounts().stream().filter(Account::isBrlCreditCard).toList();
-			try {
-				owedDetail.put(owner.owner(), owedOf(owner.owner(), cards, period));
+			Map<String, List<Bill>> billsByCard = new LinkedHashMap<>();
+			RuntimeException billsFailure = null;
+			for (Account card : cards) {
+				try {
+					billsByCard.put(card.id(), billService.getAllBills(owner.owner(), card.id()));
+				}
+				catch (RuntimeException ex) {
+					billsFailure = billsFailure == null ? ex : billsFailure;
+				}
 			}
-			catch (RuntimeException ex) {
-				errors.add(toError(owner.owner(), "faturas", ex));
+			if (billsFailure == null) {
+				owedDetail.put(owner.owner(), owedOf(cards, billsByCard, period));
+			}
+			else {
+				errors.add(toError(owner.owner(), "faturas", billsFailure));
 			}
 			try {
-				List<Purchase> purchases = unbilledPurchasesOf(owner.owner(), cards, period);
+				List<Purchase> purchases = unbilledPurchasesOf(owner.owner(), cards, billsByCard, period);
 				transactionsDetail.put(owner.owner(), purchases.stream().map(Purchase::toExpense).toList());
 				purchases.forEach(p -> purchaseAmounts.add(p.transaction().amountInBrl()));
 			}
@@ -80,10 +107,10 @@ public class ExpensesSummaryService {
 	}
 
 	/** Faturas em BRL dos cartões com vencimento entre {@code dueFrom} e {@code dueTo}. */
-	private List<OwedBill> owedOf(String owner, List<Account> cards, ExpensesPeriod period) {
+	private List<OwedBill> owedOf(List<Account> cards, Map<String, List<Bill>> billsByCard, ExpensesPeriod period) {
 		List<OwedBill> owed = new ArrayList<>();
 		for (Account card : cards) {
-			for (Bill bill : billService.getAllBills(owner, card.id())) {
+			for (Bill bill : billsByCard.get(card.id())) {
 				if (bill.isBrl() && dueWithin(bill, period)) {
 					owed.add(new OwedBill(bill.id(), card.id(), card.name(), bill.dueDate(), bill.totalAmount(),
 							bill.currencyCode()));
@@ -101,18 +128,39 @@ public class ExpensesSummaryService {
 		return !due.isBefore(period.dueFrom()) && !due.isAfter(period.dueTo());
 	}
 
-	/** Compras dos cartões ainda fora de fatura no período das compras. */
-	private List<Purchase> unbilledPurchasesOf(String owner, List<Account> cards, ExpensesPeriod period) {
+	/** Compras dos cartões ainda fora de fatura, na janela de cada cartão. */
+	private List<Purchase> unbilledPurchasesOf(String owner, List<Account> cards, Map<String, List<Bill>> billsByCard,
+			ExpensesPeriod period) {
 		List<Purchase> purchases = new ArrayList<>();
 		for (Account card : cards) {
-			for (Transaction tx : transactionService.getAllTransactions(owner, card.id(), period.transactionsFrom(),
-					period.transactionsTo())) {
-				if (tx.isUnbilledPendingDebit()) {
+			Window window = windowOf(billsByCard.getOrDefault(card.id(), List.of()), period.today());
+			for (Transaction tx : transactionService.getAllCreatedSince(owner, card.id(), window.arrivedFrom())) {
+				if (tx.isUnbilledPendingDebit() && !dateAfter(tx, window.dateUntil())) {
 					purchases.add(new Purchase(card.id(), tx));
 				}
 			}
 		}
 		return purchases;
+	}
+
+	/**
+	 * Janela do cartão. Com ciclo: chegou a partir do fechamento anterior menos
+	 * {@value #LOWER_SLACK_DAYS} dias, e {@code date} até o vencimento da fatura aberta mais
+	 * {@value #UPPER_SLACK_DAYS} dias, o que deixa de fora as parcelas das faturas seguintes.
+	 * Sem ciclo: chegou a partir do dia 1 do mês anterior, e {@code date} até hoje.
+	 */
+	private static Window windowOf(List<Bill> bills, LocalDate today) {
+		Optional<BillingCycle> cycle = BillingCycle.from(bills, today);
+		if (cycle.isPresent()) {
+			return new Window(cycle.get().previousClosing().minusDays(LOWER_SLACK_DAYS).atStartOfDay(ZONE).toInstant(),
+					cycle.get().nextDue().plusDays(UPPER_SLACK_DAYS));
+		}
+		return new Window(today.withDayOfMonth(1).minusMonths(1).atStartOfDay(ZONE).toInstant(), today);
+	}
+
+	/** Compara só o dia da compra, sem converter fuso. Compra sem data não é descartada. */
+	private static boolean dateAfter(Transaction tx, LocalDate limit) {
+		return tx.date() != null && tx.date().toLocalDate().isAfter(limit);
 	}
 
 	private static SummaryError toError(String owner, String what, RuntimeException ex) {
@@ -129,9 +177,18 @@ public class ExpensesSummaryService {
 			boolean brl = CurrencyEnum.BRL.getType().equals(transaction.currencyCode());
 			return new ExpenseTransaction(transaction.id(), accountId, transaction.description(),
 					transaction.currencyCode(), transaction.amount(), transaction.date(), transaction.category(),
-					brl ? null : transaction.amountInAccountCurrency());
+					brl ? null : transaction.amountInAccountCurrency(), installmentOf(transaction));
 		}
 
+		private static Installment installmentOf(Transaction transaction) {
+			Transaction.Installment installment = transaction.installment();
+			return installment == null ? null : new Installment(installment.number(), installment.total());
+		}
+
+	}
+
+	/** Janela de compras de um cartão: chegada a partir de {@code arrivedFrom} e {@code date} até {@code dateUntil}. */
+	private record Window(Instant arrivedFrom, LocalDate dateUntil) {
 	}
 
 }

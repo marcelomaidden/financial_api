@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -92,7 +93,7 @@ class SummaryJsonTest {
 	void serializesExpensesTransactionsWithAmountInAccountCurrencyOnlyForForeignPurchases() {
 		JsonNode transactions = summaryJson().path("expenses").path("transactions");
 
-		assertThat(transactions.path("total").path("value").decimalValue()).isEqualByComparingTo("328.19");
+		assertThat(transactions.path("total").path("value").decimalValue()).isEqualByComparingTo("478.19");
 		assertThat(transactions.path("total").path("currencyCode").asString()).isEqualTo("BRL");
 		JsonNode usd = transactions.path("detail").path("marcelo").get(0);
 		assertThat(usd.path("id").asString()).isEqualTo("p1");
@@ -107,6 +108,18 @@ class SummaryJsonTest {
 		assertThat(brl.path("currencyCode").asString()).isEqualTo("BRL");
 		assertThat(brl.has("amountInAccountCurrency")).isFalse();
 		assertThat(transactions.path("detail").has("luana")).isFalse();
+	}
+
+	@Test
+	void serializesInstallmentOnlyForInstallmentPurchases() {
+		JsonNode detail = summaryJson().path("expenses").path("transactions").path("detail").path("marcelo");
+
+		JsonNode installment = detail.get(2);
+		assertThat(installment.path("id").asString()).isEqualTo("p3");
+		assertThat(installment.path("installment").path("number").asInt()).isEqualTo(3);
+		assertThat(installment.path("installment").path("total").asInt()).isEqualTo(10);
+		assertThat(detail.get(0).has("installment")).isFalse();
+		assertThat(detail.get(1).has("installment")).isFalse();
 	}
 
 	private JsonNode summaryJson() {
@@ -125,14 +138,18 @@ class SummaryJsonTest {
 				any())).thenReturn(List.of());
 		when(transactionService.getAllTransactions("marcelo", "m1", LocalDate.of(2026, 11, 1), TODAY))
 				.thenReturn(List.of(new Transaction("t1", DATE, "PIX Recebido", new BigDecimal("19.99"), "BRL",
-						TransactionTypesEnum.CREDIT, "POSTED", null, null, null)));
-		when(transactionService.getAllTransactions("marcelo", "c1", LocalDate.of(2026, 10, 1), TODAY))
+						TransactionTypesEnum.CREDIT, "POSTED", null, null, null, null)));
+		when(transactionService.getAllCreatedSince(anyString(), anyString(), any())).thenReturn(List.of());
+		when(transactionService.getAllCreatedSince("marcelo", "c1", Instant.parse("2026-11-03T03:00:00Z")))
 				.thenReturn(List.of(
 						new Transaction("p1", DATE, "Netflix", new BigDecimal("58"), "USD",
 								TransactionTypesEnum.DEBIT, "PENDING", "Video streaming", null,
-								new BigDecimal("298.19")),
+								new BigDecimal("298.19"), null),
 						new Transaction("p2", DATE, "Mercado", new BigDecimal("30"), "BRL",
-								TransactionTypesEnum.DEBIT, "PENDING", "Groceries", null, null)));
+								TransactionTypesEnum.DEBIT, "PENDING", "Groceries", null, null, null),
+						new Transaction("p3", OffsetDateTime.parse("2026-08-15T00:00:00Z"), "Notebook",
+								new BigDecimal("150"), "BRL", TransactionTypesEnum.DEBIT, "PENDING", "Electronics",
+								null, null, new Transaction.Installment(3, 10))));
 		when(billService.getAllBills("marcelo", "c1")).thenReturn(List.of(new Bill("b1",
 				LocalDateTime.of(2026, 11, 20, 0, 0), LocalDateTime.of(2026, 11, 13, 0, 0),
 				new BigDecimal("250.40"), "BRL", new BigDecimal("25"))));

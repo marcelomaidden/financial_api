@@ -73,13 +73,13 @@ class ModelRulesTest {
 	}
 
 	private static Transaction purchase(TransactionTypesEnum type, String status, String billId) {
-		return new Transaction("t", null, "d", BigDecimal.TEN, "BRL", type, status, null, billId, null);
+		return new Transaction("t", null, "d", BigDecimal.TEN, "BRL", type, status, null, billId, null, null);
 	}
 
 	private static Transaction foreign(String currency, String amount, String inAccountCurrency) {
 		return new Transaction("t", null, "d", amount == null ? null : new BigDecimal(amount), currency,
 				TransactionTypesEnum.DEBIT, "PENDING", null, null,
-				inAccountCurrency == null ? null : new BigDecimal(inAccountCurrency));
+				inAccountCurrency == null ? null : new BigDecimal(inAccountCurrency), null);
 	}
 
 	private static Bill bill(String currency, String total) {
@@ -93,7 +93,7 @@ class ModelRulesTest {
 
 	private static Transaction tx(TransactionTypesEnum type, String currency, String amount) {
 		return new Transaction("t", null, "d", amount == null ? null : new BigDecimal(amount), currency, type, null,
-				null, null, null);
+				null, null, null, null);
 	}
 
 }

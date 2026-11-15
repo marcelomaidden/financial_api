@@ -47,7 +47,7 @@ class ResponseMapperTest {
 		Account account = new Account("a1", "i", AccountTypesEnum.UNKNOWN, null, "x", null, BigDecimal.ONE, "BRL",
 				null);
 		Transaction tx = new Transaction("t", DATE, "x", BigDecimal.ONE, "BRL", TransactionTypesEnum.UNKNOWN, null,
-				null, null, null);
+				null, null, null, null);
 
 		assertThat(ResponseMapper.toAccount(account).type()).isEqualTo("UNKNOWN");
 		assertThat(ResponseMapper.toTransaction(tx).type()).isEqualTo("UNKNOWN");
@@ -72,7 +72,7 @@ class ResponseMapperTest {
 	@Test
 	void mapsTransactionsPage() {
 		Transaction tx = new Transaction("t1", DATE, "PIX", new BigDecimal("19.99"), "BRL",
-				TransactionTypesEnum.CREDIT, "POSTED", "Transfer", null, null);
+				TransactionTypesEnum.CREDIT, "POSTED", "Transfer", null, null, null);
 
 		TransactionsResponse response = ResponseMapper.toTransactions("marcelo", "a1",
 				new TransactionPage(List.of(tx), "cursor"));

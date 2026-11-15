@@ -27,6 +27,13 @@ public interface PluggyApi {
 			@RequestParam(name = "dateTo", required = false) String dateTo,
 			@RequestParam(name = "after", required = false) String after);
 
+	/** Transações que chegaram à Pluggy a partir de {@code createdAtFrom}. Não combina com {@code dateFrom}. */
+	@GetExchange("/v2/transactions")
+	PluggyCursorPage<PluggyTransaction> listTransactionsCreatedSince(
+			@RequestParam("accountId") String accountId,
+			@RequestParam("createdAtFrom") String createdAtFrom,
+			@RequestParam(name = "after", required = false) String after);
+
 	@GetExchange("/bills")
 	PluggyPage<PluggyBill> listBills(
 			@RequestParam("accountId") String accountId,

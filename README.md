@@ -101,13 +101,19 @@ Soma, em BRL, o que os donos têm e devem. Só entram contas e valores em BRL.
 | `incomes.available` | Saldo atual das contas `BANK`. Não depende do período |
 | `incomes.transactions` | Entradas (`CREDIT`) das contas `BANK` no período |
 | `expenses.owed` | Faturas dos cartões com `dueDate` no período, até o fim do mês de `dateTo`. Não informa se a fatura já foi paga |
-| `expenses.transactions` | Compras do cartão ainda sem fatura (`DEBIT`, `PENDING`, sem `billId`). `amountInAccountCurrency` aparece só em compra fora de BRL, e o total usa esse valor |
+| `expenses.transactions` | Compras do cartão ainda sem fatura (`DEBIT`, `PENDING`, sem `billId`), buscadas pela data em que chegaram à Pluggy, numa janela de cada cartão. `amountInAccountCurrency` aparece só em compra fora de BRL, e o total usa esse valor. `installment` (`number` e `total`) aparece só em compra parcelada |
 
 Cada parte tem `total` (`value` e `currencyCode`) e `detail`, um mapa de dono
 para a lista dele. `dateTo` é opcional e assume hoje. `dateFrom` é opcional e
-assume o dia 1 do mês de `dateTo`, exceto em `expenses.transactions`, onde
-assume o dia 1 do mês anterior (uma compra do mês passado ainda sem fatura
-pertence à fatura aberta).
+assume o dia 1 do mês de `dateTo`.
+
+`expenses.transactions` mostra o estado atual e não usa `dateFrom` nem `dateTo`.
+A janela é de cada cartão e vem da fatura mais recente que a Pluggy devolve para
+ele: a compra entra se chegou à Pluggy a partir de 10 dias antes do fechamento
+anterior e se a data dela vai até 5 dias depois do vencimento da fatura aberta.
+Isso mantém as parcelas da fatura aberta, mesmo com data de compra antiga, e deixa
+de fora as parcelas de faturas futuras. Cartão sem fatura devolvida usa o dia 1 do
+mês anterior até hoje.
 
 Se a consulta de um dono falhar, a resposta é 200, `partial` é `true`, o dono
 sai da parte afetada e entra em `errors`. Se as contas falharem para todos os
@@ -133,12 +139,14 @@ donos, a resposta é 502.
                                  "dueDate": "2026-11-20T00:00:00", "totalAmount": 250.40, "currencyCode": "BRL" } ] }
     },
     "transactions": {
-      "total": { "value": 328.19, "currencyCode": "BRL" },
+      "total": { "value": 478.19, "currencyCode": "BRL" },
       "detail": { "marcelo": [
         { "id": "...", "accountId": "...", "description": "Netflix", "currencyCode": "USD", "amount": 58,
           "date": "...", "category": "Video streaming", "amountInAccountCurrency": 298.19 },
         { "id": "...", "accountId": "...", "description": "Mercado", "currencyCode": "BRL", "amount": 30,
-          "date": "...", "category": "Groceries" } ] }
+          "date": "...", "category": "Groceries" },
+        { "id": "...", "accountId": "...", "description": "Notebook", "currencyCode": "BRL", "amount": 150,
+          "date": "...", "category": "Electronics", "installment": { "number": 3, "total": 10 } } ] }
     }
   },
   "partial": true,

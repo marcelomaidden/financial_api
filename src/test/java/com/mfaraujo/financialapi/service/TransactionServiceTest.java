@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -65,6 +66,42 @@ class TransactionServiceTest {
 				.thenReturn(new PluggyCursorPage<>(null, null));
 
 		assertThat(service.getAllTransactions("marcelo", "a1", FROM, TO)).isEmpty();
+	}
+
+	@Test
+	void createdSinceReturnsSinglePage() {
+		Instant since = Instant.parse("2026-10-25T03:00:00Z");
+		when(client.listTransactionsCreatedSince("marcelo", "a1", since, null))
+				.thenReturn(new PluggyCursorPage<>(List.of(pluggyTx("t1")), null));
+
+		List<Transaction> all = service.getAllCreatedSince("marcelo", "a1", since);
+
+		assertThat(all).extracting(Transaction::id).containsExactly("t1");
+		verify(client, times(1)).listTransactionsCreatedSince("marcelo", "a1", since, null);
+	}
+
+	@Test
+	void createdSinceFollowsCursorAcrossPages() {
+		Instant since = Instant.parse("2026-10-25T03:00:00Z");
+		when(client.listTransactionsCreatedSince("marcelo", "a1", since, null))
+				.thenReturn(new PluggyCursorPage<>(List.of(pluggyTx("t1")), "?createdAtFrom=x&after=c2"));
+		when(client.listTransactionsCreatedSince("marcelo", "a1", since, "c2"))
+				.thenReturn(new PluggyCursorPage<>(List.of(pluggyTx("t2")), "?after=c3"));
+		when(client.listTransactionsCreatedSince("marcelo", "a1", since, "c3"))
+				.thenReturn(new PluggyCursorPage<>(List.of(pluggyTx("t3")), null));
+
+		List<Transaction> all = service.getAllCreatedSince("marcelo", "a1", since);
+
+		assertThat(all).extracting(Transaction::id).containsExactly("t1", "t2", "t3");
+	}
+
+	@Test
+	void createdSinceReturnsEmptyListForEmptyPage() {
+		Instant since = Instant.parse("2026-10-25T03:00:00Z");
+		when(client.listTransactionsCreatedSince("marcelo", "a1", since, null))
+				.thenReturn(new PluggyCursorPage<>(null, null));
+
+		assertThat(service.getAllCreatedSince("marcelo", "a1", since)).isEmpty();
 	}
 
 	private static PluggyTransaction pluggyTx(String id) {

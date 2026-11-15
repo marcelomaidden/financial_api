@@ -21,9 +21,12 @@ public record PluggyTransaction(
 		BigDecimal amountInAccountCurrency,
 		CreditCardMetadata creditCardMetadata) {
 
-	/** {@code billId} só vem preenchido quando a compra já entrou em uma fatura. */
+	/**
+	 * {@code billId} só vem preenchido quando a compra já entrou em uma fatura. Os campos de
+	 * parcela só vêm em compra parcelada.
+	 */
 	@JsonIgnoreProperties(ignoreUnknown = true)
-	public record CreditCardMetadata(String billId) {
+	public record CreditCardMetadata(String billId, Integer installmentNumber, Integer totalInstallments) {
 	}
 
 }

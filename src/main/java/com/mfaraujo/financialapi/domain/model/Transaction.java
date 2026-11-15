@@ -16,7 +16,8 @@ public record Transaction(
 		String status,
 		String category,
 		String billId,
-		BigDecimal amountInAccountCurrency) {
+		BigDecimal amountInAccountCurrency,
+		Installment installment) {
 
 	static final String PENDING = "PENDING";
 
@@ -31,6 +32,10 @@ public record Transaction(
 	 */
 	public BigDecimal amountInBrl() {
 		return CurrencyEnum.BRL.getType().equals(currencyCode) ? amount : amountInAccountCurrency;
+	}
+
+	/** Parcela de uma compra parcelada: a {@code number}-ésima de {@code total}. */
+	public record Installment(int number, int total) {
 	}
 
 	/** Entrada de dinheiro em BRL e com valor informado. */
