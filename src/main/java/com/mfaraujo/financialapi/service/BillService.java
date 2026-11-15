@@ -3,7 +3,7 @@ package com.mfaraujo.financialapi.service;
 import com.mfaraujo.financialapi.client.PluggyClient;
 import com.mfaraujo.financialapi.client.dto.PluggyBill;
 import com.mfaraujo.financialapi.client.dto.PluggyPage;
-import com.mfaraujo.financialapi.resource.dto.BillsResponse;
+import com.mfaraujo.financialapi.domain.result.BillPage;
 
 import org.springframework.stereotype.Service;
 
@@ -20,11 +20,11 @@ public class BillService {
 		this.owners = owners;
 	}
 
-	public BillsResponse getBills(String owner, String accountId, Integer page, Integer pageSize) {
+	public BillPage getBills(String owner, String accountId, Integer page, Integer pageSize) {
 		owners.require(owner);
 		PluggyPage<PluggyBill> bills = pluggyClient.listBills(owner, accountId, page, pageSize);
-		return new BillsResponse(owner, accountId, bills.resultsOrEmpty().stream().map(PluggyMapper::toBill).toList(),
-				bills.page(), bills.totalPages());
+		return new BillPage(bills.resultsOrEmpty().stream().map(PluggyMapper::toBill).toList(), bills.page(),
+				bills.totalPages());
 	}
 
 }

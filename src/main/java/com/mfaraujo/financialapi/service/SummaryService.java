@@ -9,25 +9,25 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.mfaraujo.financialapi.domain.model.Account;
+import com.mfaraujo.financialapi.domain.model.Transaction;
+import com.mfaraujo.financialapi.domain.result.OwnerAccountsResult;
+import com.mfaraujo.financialapi.domain.result.TransactionPage;
 import com.mfaraujo.financialapi.exception.ApiErrors;
-import com.mfaraujo.financialapi.resource.dto.AccountResponse;
 import com.mfaraujo.financialapi.resource.dto.ApiError;
 import com.mfaraujo.financialapi.resource.dto.IncomeAccount;
 import com.mfaraujo.financialapi.resource.dto.IncomeTransaction;
 import com.mfaraujo.financialapi.resource.dto.IncomesSummary;
 import com.mfaraujo.financialapi.resource.dto.Money;
-import com.mfaraujo.financialapi.resource.dto.OwnerAccounts;
 import com.mfaraujo.financialapi.resource.dto.SummaryError;
 import com.mfaraujo.financialapi.resource.dto.SummaryResponse;
 import com.mfaraujo.financialapi.resource.dto.SummarySection;
-import com.mfaraujo.financialapi.resource.dto.TransactionResponse;
-import com.mfaraujo.financialapi.resource.dto.TransactionsResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import static com.mfaraujo.financialapi.service.enums.CurrencyEnum.BRL;
+import static com.mfaraujo.financialapi.domain.enums.CurrencyEnum.BRL;
 
 /**
  * Resumo de {@code incomes}: saldo das contas {@code BANK} e entradas
@@ -69,12 +69,12 @@ public class SummaryService {
 		Map<String, List<IncomeTransaction>> transactionsDetail = new LinkedHashMap<>();
 		List<SummaryError> errors = new ArrayList<>();
 
-		for (OwnerAccounts owner : accountService.getAccounts(null).owners()) {
+		for (OwnerAccountsResult owner : accountService.getAccounts(null).owners()) {
 			if (owner.error() != null) {
 				errors.add(toError(owner.owner(), owner.error()));
 				continue;
 			}
-			List<AccountResponse> bankAccounts = bankAccounts(owner);
+			List<Account> bankAccounts = bankAccounts(owner);
 			availableDetail.put(owner.owner(), toIncomeAccounts(bankAccounts));
 
 			try {
@@ -93,13 +93,13 @@ public class SummaryService {
 				                   !errors.isEmpty(), errors);
 	}
 
-	private List<AccountResponse> bankAccounts(OwnerAccounts owner) {
+	private List<Account> bankAccounts(OwnerAccountsResult owner) {
 		return owner.accounts().stream()
-				.filter(AccountResponse::isBrlBankAccount)
+				.filter(Account::isBrlBankAccount)
 				.toList();
 	}
 
-	private List<IncomeAccount> toIncomeAccounts(List<AccountResponse> bankAccounts) {
+	private List<IncomeAccount> toIncomeAccounts(List<Account> bankAccounts) {
 		return bankAccounts.stream()
 				.map(a -> new IncomeAccount(a.id(), a.name(), a.balance(), a.currencyCode()))
 				.toList();
@@ -120,15 +120,15 @@ public class SummaryService {
 	}
 
 	/** Entradas do período de todas as contas do dono. Qualquer falha descarta o dono inteiro. */
-	private List<IncomeTransaction> incomesOf(String owner, List<AccountResponse> accounts, LocalDate from,
+	private List<IncomeTransaction> incomesOf(String owner, List<Account> accounts, LocalDate from,
 			LocalDate to) {
 		List<IncomeTransaction> incomes = new ArrayList<>();
-		for (AccountResponse account : accounts) {
+		for (Account account : accounts) {
 			String after = null;
 			do {
-				TransactionsResponse page = transactionService.getTransactions(owner, account.id(), from, to, after);
-				for (TransactionResponse tx : page.transactions()) {
-					if (tx.isBrazilianCredit()) {
+				TransactionPage page = transactionService.getTransactions(owner, account.id(), from, to, after);
+				for (Transaction tx : page.transactions()) {
+					if (tx.isBrlCredit()) {
 						incomes.add(buildIncomeTransaction(tx, account.id()));
 					}
 				}
@@ -139,7 +139,7 @@ public class SummaryService {
 		return incomes;
 	}
 
-	private IncomeTransaction buildIncomeTransaction(TransactionResponse tx, String accountId) {
+	private IncomeTransaction buildIncomeTransaction(Transaction tx, String accountId) {
 		return new IncomeTransaction(tx.id(), tx.description(), tx.amount(),
 				                    tx.currencyCode(), tx.date(), accountId);
 	}

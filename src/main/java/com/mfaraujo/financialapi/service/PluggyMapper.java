@@ -3,39 +3,34 @@ package com.mfaraujo.financialapi.service;
 import com.mfaraujo.financialapi.client.dto.PluggyAccount;
 import com.mfaraujo.financialapi.client.dto.PluggyBill;
 import com.mfaraujo.financialapi.client.dto.PluggyTransaction;
-import com.mfaraujo.financialapi.resource.dto.AccountResponse;
-import com.mfaraujo.financialapi.resource.dto.BillResponse;
-import com.mfaraujo.financialapi.resource.dto.CreditCardResponse;
-import com.mfaraujo.financialapi.resource.dto.TransactionResponse;
+import com.mfaraujo.financialapi.domain.model.Account;
+import com.mfaraujo.financialapi.domain.enums.AccountTypesEnum;
+import com.mfaraujo.financialapi.domain.model.Bill;
+import com.mfaraujo.financialapi.domain.model.Transaction;
+import com.mfaraujo.financialapi.domain.enums.TransactionTypesEnum;
 
-/** Traduz os DTOs da Pluggy para o contrato da API. */
+/** Traduz os DTOs da Pluggy para o modelo de domínio. */
 final class PluggyMapper {
 
 	private PluggyMapper() {
 	}
 
-	static AccountResponse toAccount(PluggyAccount account) {
-		return new AccountResponse(account.id(), account.itemId(), account.type(), account.subtype(),
-				account.name(), account.number(), account.balance(), account.currencyCode());
-	}
-
-	static CreditCardResponse toCreditCard(PluggyAccount account) {
+	static Account toAccount(PluggyAccount account) {
 		PluggyAccount.CreditData credit = account.creditData();
-		return new CreditCardResponse(account.id(), account.itemId(), account.name(), account.number(),
-				credit == null ? null : credit.brand(), account.balance(), account.currencyCode(),
-				credit == null ? null : credit.creditLimit(),
-				credit == null ? null : credit.availableCreditLimit(),
-				credit == null ? null : credit.balanceCloseDate(),
-				credit == null ? null : credit.balanceDueDate());
+		return new Account(account.id(), account.itemId(), AccountTypesEnum.fromPluggy(account.type()),
+				account.subtype(), account.name(), account.number(), account.balance(), account.currencyCode(),
+				credit == null ? null
+						: new Account.Credit(credit.brand(), credit.creditLimit(), credit.availableCreditLimit(),
+								credit.balanceCloseDate(), credit.balanceDueDate()));
 	}
 
-	static TransactionResponse toTransaction(PluggyTransaction tx) {
-		return new TransactionResponse(tx.id(), tx.date(), tx.description(), tx.amount(), tx.currencyCode(),
-				tx.type(), tx.status(), tx.category());
+	static Transaction toTransaction(PluggyTransaction tx) {
+		return new Transaction(tx.id(), tx.date(), tx.description(), tx.amount(), tx.currencyCode(),
+				TransactionTypesEnum.fromPluggy(tx.type()), tx.status(), tx.category());
 	}
 
-	static BillResponse toBill(PluggyBill bill) {
-		return new BillResponse(bill.id(), bill.dueDate(), bill.billClosingDate(), bill.totalAmount(),
+	static Bill toBill(PluggyBill bill) {
+		return new Bill(bill.id(), bill.dueDate(), bill.billClosingDate(), bill.totalAmount(),
 				bill.totalAmountCurrencyCode(), bill.minimumPaymentAmount());
 	}
 

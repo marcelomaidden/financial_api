@@ -8,8 +8,8 @@ import java.util.List;
 import com.mfaraujo.financialapi.client.PluggyClient;
 import com.mfaraujo.financialapi.client.dto.PluggyCursorPage;
 import com.mfaraujo.financialapi.client.dto.PluggyTransaction;
-import com.mfaraujo.financialapi.resource.dto.TransactionResponse;
-import com.mfaraujo.financialapi.resource.dto.TransactionsResponse;
+import com.mfaraujo.financialapi.domain.model.Transaction;
+import com.mfaraujo.financialapi.domain.result.TransactionPage;
 
 import org.springframework.stereotype.Service;
 
@@ -26,13 +26,13 @@ public class TransactionService {
 		this.owners = owners;
 	}
 
-	public TransactionsResponse getTransactions(String owner, String accountId, LocalDate dateFrom, LocalDate dateTo,
+	public TransactionPage getTransactions(String owner, String accountId, LocalDate dateFrom, LocalDate dateTo,
 			String after) {
 		owners.require(owner);
 		PluggyCursorPage<PluggyTransaction> page = pluggyClient.listTransactions(owner, accountId, dateFrom, dateTo,
 				after);
-		List<TransactionResponse> transactions = page.resultsOrEmpty().stream().map(PluggyMapper::toTransaction).toList();
-		return new TransactionsResponse(owner, accountId, transactions, cursorFrom(page.next()));
+		List<Transaction> transactions = page.resultsOrEmpty().stream().map(PluggyMapper::toTransaction).toList();
+		return new TransactionPage(transactions, cursorFrom(page.next()));
 	}
 
 	/** Extrai o valor de {@code after} da query string {@code next} da Pluggy. */

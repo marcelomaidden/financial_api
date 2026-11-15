@@ -16,15 +16,15 @@ import java.util.List;
 
 import com.mfaraujo.financialapi.exception.AllOwnersFailedException;
 import com.mfaraujo.financialapi.exception.PluggyException;
-import com.mfaraujo.financialapi.resource.dto.AccountResponse;
+import com.mfaraujo.financialapi.domain.model.Account;
+import com.mfaraujo.financialapi.domain.enums.AccountTypesEnum;
+import com.mfaraujo.financialapi.domain.model.Transaction;
+import com.mfaraujo.financialapi.domain.enums.TransactionTypesEnum;
+import com.mfaraujo.financialapi.domain.result.OwnerAccountsResult;
+import com.mfaraujo.financialapi.domain.result.TransactionPage;
 import com.mfaraujo.financialapi.resource.dto.ApiError;
-import com.mfaraujo.financialapi.resource.dto.OwnerAccounts;
 import com.mfaraujo.financialapi.resource.dto.OwnersResponse;
 import com.mfaraujo.financialapi.resource.dto.SummaryResponse;
-import com.mfaraujo.financialapi.resource.dto.TransactionResponse;
-import com.mfaraujo.financialapi.resource.dto.TransactionsResponse;
-import com.mfaraujo.financialapi.service.enums.AccountTypesEnum;
-import com.mfaraujo.financialapi.service.enums.TransactionTypesEnum;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -101,11 +101,9 @@ class SummaryServiceTest {
 	void queriesTransactionsFromMonthStartAndFollowsPages() {
 		accounts(owner("marcelo", bank("m1", "Nubank", "0")));
 		when(transactionService.getTransactions("marcelo", "m1", MONTH_START, TODAY, null))
-				.thenReturn(new TransactionsResponse("marcelo", "m1",
-						List.of(tx("t1", "A", "10", "BRL", TransactionTypesEnum.CREDIT)), "cursor-2"));
+				.thenReturn(new TransactionPage(List.of(tx("t1", "A", "10", "BRL", TransactionTypesEnum.CREDIT)), "cursor-2"));
 		when(transactionService.getTransactions("marcelo", "m1", MONTH_START, TODAY, "cursor-2"))
-				.thenReturn(new TransactionsResponse("marcelo", "m1",
-						List.of(tx("t2", "B", "5", "BRL", TransactionTypesEnum.CREDIT)), null));
+				.thenReturn(new TransactionPage(List.of(tx("t2", "B", "5", "BRL", TransactionTypesEnum.CREDIT)), null));
 
 		SummaryResponse summary = service.getSummary(null, null);
 
@@ -128,7 +126,7 @@ class SummaryServiceTest {
 	@Test
 	void dropsOwnerWhoseAccountsFailAndKeepsTheOther() {
 		ApiError error = new ApiError(502, "Bad Gateway", "Erro ao consultar a Pluggy");
-		accounts(new OwnerAccounts("luana", List.of(), error), owner("marcelo", bank("m1", "Nubank", "500")));
+		accounts(new OwnerAccountsResult("luana", List.of(), error), owner("marcelo", bank("m1", "Nubank", "500")));
 		page("marcelo", "m1", tx("t1", "PIX", "20", "BRL", TransactionTypesEnum.CREDIT));
 
 		SummaryResponse summary = service.getSummary(null, null);
@@ -167,30 +165,30 @@ class SummaryServiceTest {
 		assertThatThrownBy(() -> service.getSummary(null, null)).isInstanceOf(AllOwnersFailedException.class);
 	}
 
-	private void accounts(OwnerAccounts... owners) {
+	private void accounts(OwnerAccountsResult... owners) {
 		when(accountService.getAccounts(null)).thenReturn(new OwnersResponse<>(List.of(owners)));
 	}
 
-	private void page(String owner, String accountId, TransactionResponse... txs) {
+	private void page(String owner, String accountId, Transaction... txs) {
 		when(transactionService.getTransactions(eq(owner), eq(accountId), eq(MONTH_START), eq(TODAY), eq(null)))
-				.thenReturn(new TransactionsResponse(owner, accountId, List.of(txs), null));
+				.thenReturn(new TransactionPage(List.of(txs), null));
 	}
 
-	private static OwnerAccounts owner(String name, AccountResponse... accounts) {
-		return new OwnerAccounts(name, List.of(accounts), null);
+	private static OwnerAccountsResult owner(String name, Account... accounts) {
+		return new OwnerAccountsResult(name, List.of(accounts), null);
 	}
 
-	private static AccountResponse bank(String id, String name, String balance) {
+	private static Account bank(String id, String name, String balance) {
 		return account(id, name, AccountTypesEnum.BANK, balance, "BRL");
 	}
 
-	private static AccountResponse account(String id, String name, AccountTypesEnum type, String balance, String currency) {
-		return new AccountResponse(id, "item", type, null, name, null, new BigDecimal(balance), currency);
+	private static Account account(String id, String name, AccountTypesEnum type, String balance, String currency) {
+		return new Account(id, "item", type, null, name, null, new BigDecimal(balance), currency, null);
 	}
 
-	private static TransactionResponse tx(String id, String description, String amount, String currency,
+	private static Transaction tx(String id, String description, String amount, String currency,
 										  TransactionTypesEnum type) {
-		return new TransactionResponse(id, Instant.parse("2026-11-10T12:00:00Z").atZone(ZONE).toOffsetDateTime(),
+		return new Transaction(id, Instant.parse("2026-11-10T12:00:00Z").atZone(ZONE).toOffsetDateTime(),
 				description, new BigDecimal(amount), currency, type, "POSTED", null);
 	}
 

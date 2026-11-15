@@ -3,10 +3,10 @@ package com.mfaraujo.financialapi.service;
 import java.util.List;
 
 import com.mfaraujo.financialapi.client.PluggyClient;
-import com.mfaraujo.financialapi.client.dto.PluggyAccount;
 import com.mfaraujo.financialapi.client.dto.PluggyPage;
-import com.mfaraujo.financialapi.resource.dto.OwnerAccounts;
-import com.mfaraujo.financialapi.resource.dto.OwnerCreditCards;
+import com.mfaraujo.financialapi.domain.model.Account;
+import com.mfaraujo.financialapi.domain.result.OwnerAccountsResult;
+import com.mfaraujo.financialapi.domain.result.OwnerCreditCardsResult;
 import com.mfaraujo.financialapi.resource.dto.OwnersResponse;
 
 import org.springframework.stereotype.Service;
@@ -31,27 +31,27 @@ public class AccountService {
 	}
 
 	/** Contas de todos os donos, ou só de {@code owner} quando informado. */
-	public OwnersResponse<OwnerAccounts> getAccounts(String owner) {
+	public OwnersResponse<OwnerAccountsResult> getAccounts(String owner) {
 		return fanOut.collect(owner,
-				name -> new OwnerAccounts(name, accountsOf(name).stream().map(PluggyMapper::toAccount).toList(), null),
-				(name, error) -> new OwnerAccounts(name, List.of(), error));
+				name -> new OwnerAccountsResult(name, accountsOf(name), null),
+				(name, error) -> new OwnerAccountsResult(name, List.of(), error));
 	}
 
 	/** Cartões de crédito de todos os donos, ou só de {@code owner} quando informado. */
-	public OwnersResponse<OwnerCreditCards> getCreditCards(String owner) {
+	public OwnersResponse<OwnerCreditCardsResult> getCreditCards(String owner) {
 		return fanOut.collect(owner,
-				name -> new OwnerCreditCards(name, accountsOf(name).stream()
-						.filter(PluggyAccount::isCreditCard)
-						.map(PluggyMapper::toCreditCard)
+				name -> new OwnerCreditCardsResult(name, accountsOf(name).stream()
+						.filter(Account::isCreditCard)
 						.toList(), null),
-				(name, error) -> new OwnerCreditCards(name, List.of(), error));
+				(name, error) -> new OwnerCreditCardsResult(name, List.of(), error));
 	}
 
-	private List<PluggyAccount> accountsOf(String owner) {
+	private List<Account> accountsOf(String owner) {
 		return owners.require(owner).itemIds().stream()
 				.map(itemId -> pluggyClient.listAccounts(owner, itemId))
 				.map(PluggyPage::resultsOrEmpty)
 				.flatMap(List::stream)
+				.map(PluggyMapper::toAccount)
 				.toList();
 	}
 

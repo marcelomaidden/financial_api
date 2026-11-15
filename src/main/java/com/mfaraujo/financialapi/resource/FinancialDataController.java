@@ -50,12 +50,12 @@ public class FinancialDataController {
 
 	@GetMapping("/accounts")
 	public OwnersResponse<OwnerAccounts> accounts(@RequestParam(required = false) String owner) {
-		return accountService.getAccounts(owner);
+		return ResponseMapper.toAccounts(accountService.getAccounts(owner));
 	}
 
 	@GetMapping("/credit-cards")
 	public OwnersResponse<OwnerCreditCards> creditCards(@RequestParam(required = false) String owner) {
-		return accountService.getCreditCards(owner);
+		return ResponseMapper.toCreditCards(accountService.getCreditCards(owner));
 	}
 
 	/**
@@ -68,14 +68,15 @@ public class FinancialDataController {
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
 			@RequestParam(required = false) String after) {
-		return transactionService.getTransactions(owner, accountId, dateFrom, dateTo, after);
+		return ResponseMapper.toTransactions(owner, accountId,
+				transactionService.getTransactions(owner, accountId, dateFrom, dateTo, after));
 	}
 
 	@GetMapping("/owners/{owner}/accounts/{accountId}/bills")
 	public BillsResponse bills(@PathVariable String owner, @PathVariable String accountId,
 			@RequestParam(required = false) @Min(1) Integer page,
 			@RequestParam(required = false) @Min(1) @Max(500) Integer pageSize) {
-		return billService.getBills(owner, accountId, page, pageSize);
+		return ResponseMapper.toBills(owner, accountId, billService.getBills(owner, accountId, page, pageSize));
 	}
 
 }
