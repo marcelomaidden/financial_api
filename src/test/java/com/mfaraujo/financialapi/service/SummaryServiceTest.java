@@ -5,30 +5,30 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 
-import com.mfaraujo.financialapi.exception.AllOwnersFailedException;
-import com.mfaraujo.financialapi.exception.PluggyException;
-import com.mfaraujo.financialapi.domain.model.Account;
-import com.mfaraujo.financialapi.domain.enums.AccountTypesEnum;
-import com.mfaraujo.financialapi.domain.model.Transaction;
-import com.mfaraujo.financialapi.domain.enums.TransactionTypesEnum;
 import com.mfaraujo.financialapi.domain.result.OwnerAccountsResult;
-import com.mfaraujo.financialapi.domain.result.TransactionPage;
+import com.mfaraujo.financialapi.exception.AllOwnersFailedException;
 import com.mfaraujo.financialapi.resource.dto.ApiError;
+import com.mfaraujo.financialapi.resource.dto.IncomesSummary;
+import com.mfaraujo.financialapi.resource.dto.Money;
 import com.mfaraujo.financialapi.resource.dto.OwnersResponse;
+import com.mfaraujo.financialapi.resource.dto.SummaryError;
 import com.mfaraujo.financialapi.resource.dto.SummaryResponse;
+import com.mfaraujo.financialapi.resource.dto.SummarySection;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
-import org.springframework.http.HttpStatus;
+import org.mockito.ArgumentCaptor;
 
 class SummaryServiceTest {
 
@@ -38,124 +38,62 @@ class SummaryServiceTest {
 
 	private static final LocalDate MONTH_START = LocalDate.of(2026, 11, 1);
 
+	private static final IncomesSummary EMPTY = new IncomesSummary(
+			new SummarySection<>(new Money(BigDecimal.ZERO, "BRL"), Map.of()),
+			new SummarySection<>(new Money(BigDecimal.ZERO, "BRL"), Map.of()));
+
 	private AccountService accountService;
 
-	private TransactionService transactionService;
+	private IncomesSummaryService incomesService;
 
 	private SummaryService service;
 
 	@BeforeEach
 	void setUp() {
 		accountService = mock(AccountService.class);
-		transactionService = mock(TransactionService.class);
+		incomesService = mock(IncomesSummaryService.class);
 		Clock clock = Clock.fixed(TODAY.atTime(12, 0).atZone(ZONE).toInstant(), ZONE);
-		service = new SummaryService(accountService, transactionService, clock);
+		service = new SummaryService(accountService, incomesService, clock);
+		when(incomesService.summarize(any(), any(), any())).thenReturn(new SectionResult<>(EMPTY, List.of()));
 	}
 
 	@Test
-	void sumsBalancesAndCreditsOfBankAccountsInBrl() {
-		accounts(owner("marcelo", bank("m1", "Nubank", "500.50"), bank("m2", "Itaú", "100")),
-				owner("luana", bank("l1", "Inter", "200")));
-		page("marcelo", "m1", tx("t1", "PIX Recebido", "19.99", "BRL", TransactionTypesEnum.CREDIT));
-		page("marcelo", "m2");
-		page("luana", "l1", tx("t2", "Salário", "1000", "BRL", TransactionTypesEnum.CREDIT));
+	void fetchesAccountsOnceAndReturnsTheSection() {
+		accounts(owner("marcelo"), owner("luana"));
 
 		SummaryResponse summary = service.getSummary(null, null);
 
+		verify(accountService, times(1)).getAccounts(null);
+		assertThat(summary.incomes()).isSameAs(EMPTY);
 		assertThat(summary.partial()).isFalse();
 		assertThat(summary.errors()).isEmpty();
-		assertThat(summary.incomes().available().total().value()).isEqualByComparingTo("800.50");
-		assertThat(summary.incomes().available().total().currencyCode()).isEqualTo("BRL");
-		assertThat(summary.incomes().available().detail()).containsOnlyKeys("marcelo", "luana");
-		assertThat(summary.incomes().available().detail().get("marcelo")).hasSize(2);
-		assertThat(summary.incomes().transactions().total().value()).isEqualByComparingTo("1019.99");
-		assertThat(summary.incomes().transactions().detail().get("marcelo")).singleElement()
-				.satisfies(t -> assertThat(t.accountId()).isEqualTo("m1"));
 	}
 
 	@Test
-	void ignoresNonBankAccountsAndNonBrlAccounts() {
-		accounts(owner("marcelo", bank("m1", "Nubank", "500"), account("c1", "Cartão", AccountTypesEnum.CREDIT, "999", "BRL"),
-				account("u1", "Dólar", AccountTypesEnum.BANK, "300", "USD")));
-		page("marcelo", "m1");
-
-		SummaryResponse summary = service.getSummary(null, null);
-
-		assertThat(summary.incomes().available().detail().get("marcelo")).extracting("id").containsExactly("m1");
-		assertThat(summary.incomes().available().total().value()).isEqualByComparingTo("500");
-	}
-
-	@Test
-	void keepsOnlyBrlCreditTransactions() {
-		accounts(owner("marcelo", bank("m1", "Nubank", "0")));
-		page("marcelo", "m1", tx("in", "PIX", "50", "BRL", TransactionTypesEnum.CREDIT), tx("out", "Mercado", "30", "BRL", TransactionTypesEnum.DEBIT),
-				tx("usd", "Exterior", "10", "USD", TransactionTypesEnum.CREDIT));
-
-		SummaryResponse summary = service.getSummary(null, null);
-
-		assertThat(summary.incomes().transactions().detail().get("marcelo")).extracting("id").containsExactly("in");
-		assertThat(summary.incomes().transactions().total().value()).isEqualByComparingTo("50");
-	}
-
-	@Test
-	void queriesTransactionsFromMonthStartAndFollowsPages() {
-		accounts(owner("marcelo", bank("m1", "Nubank", "0")));
-		when(transactionService.getTransactions("marcelo", "m1", MONTH_START, TODAY, null))
-				.thenReturn(new TransactionPage(List.of(tx("t1", "A", "10", "BRL", TransactionTypesEnum.CREDIT)), "cursor-2"));
-		when(transactionService.getTransactions("marcelo", "m1", MONTH_START, TODAY, "cursor-2"))
-				.thenReturn(new TransactionPage(List.of(tx("t2", "B", "5", "BRL", TransactionTypesEnum.CREDIT)), null));
-
-		SummaryResponse summary = service.getSummary(null, null);
-
-		assertThat(summary.incomes().transactions().detail().get("marcelo")).extracting("id")
-				.containsExactly("t1", "t2");
-		assertThat(summary.incomes().transactions().total().value()).isEqualByComparingTo("15");
-	}
-
-	@Test
-	void keepsTransferBetweenOwnersAsIncome() {
-		accounts(owner("marcelo", bank("m1", "Nubank", "0")), owner("luana", bank("l1", "Inter", "0")));
-		page("marcelo", "m1");
-		page("luana", "l1", tx("t1", "PIX Recebido de Marcelo", "300", "BRL", TransactionTypesEnum.CREDIT));
-
-		SummaryResponse summary = service.getSummary(null, null);
-
-		assertThat(summary.incomes().transactions().detail().get("luana")).extracting("id").containsExactly("t1");
-	}
-
-	@Test
-	void dropsOwnerWhoseAccountsFailAndKeepsTheOther() {
+	void recordsAccountErrorOnceAndDoesNotPassTheOwnerToTheSection() {
 		ApiError error = new ApiError(502, "Bad Gateway", "Erro ao consultar a Pluggy");
-		accounts(new OwnerAccountsResult("luana", List.of(), error), owner("marcelo", bank("m1", "Nubank", "500")));
-		page("marcelo", "m1", tx("t1", "PIX", "20", "BRL", TransactionTypesEnum.CREDIT));
+		accounts(new OwnerAccountsResult("luana", List.of(), error), owner("marcelo"));
 
 		SummaryResponse summary = service.getSummary(null, null);
 
 		assertThat(summary.partial()).isTrue();
-		assertThat(summary.errors()).singleElement().satisfies(e -> {
-			assertThat(e.owner()).isEqualTo("luana");
-			assertThat(e.status()).isEqualTo(502);
-		});
-		assertThat(summary.incomes().available().detail()).containsOnlyKeys("marcelo");
-		assertThat(summary.incomes().transactions().detail()).containsOnlyKeys("marcelo");
-		assertThat(summary.incomes().available().total().value()).isEqualByComparingTo("500");
+		assertThat(summary.errors()).containsExactly(new SummaryError("luana", 502, "Erro ao consultar a Pluggy"));
+		ArgumentCaptor<List<OwnerAccountsResult>> owners = ArgumentCaptor.captor();
+		verify(incomesService).summarize(owners.capture(), any(), any());
+		assertThat(owners.getValue()).extracting(OwnerAccountsResult::owner).containsExactly("marcelo");
 	}
 
 	@Test
-	void dropsOwnerFromTransactionsOnlyWhenTransactionsFail() {
-		accounts(owner("marcelo", bank("m1", "Nubank", "500")), owner("luana", bank("l1", "Inter", "200")));
-		when(transactionService.getTransactions(eq("marcelo"), eq("m1"), any(), any(), any()))
-				.thenThrow(new PluggyException("marcelo", HttpStatus.INTERNAL_SERVER_ERROR, "falhou"));
-		page("luana", "l1", tx("t1", "PIX", "20", "BRL", TransactionTypesEnum.CREDIT));
+	void putsAccountErrorsBeforeSectionErrors() {
+		ApiError error = new ApiError(502, "Bad Gateway", "contas");
+		accounts(owner("marcelo"), new OwnerAccountsResult("luana", List.of(), error));
+		when(incomesService.summarize(any(), any(), any()))
+				.thenReturn(new SectionResult<>(EMPTY, List.of(new SummaryError("marcelo", 500, "transações"))));
 
 		SummaryResponse summary = service.getSummary(null, null);
 
 		assertThat(summary.partial()).isTrue();
-		assertThat(summary.errors()).singleElement().satisfies(e -> assertThat(e.owner()).isEqualTo("marcelo"));
-		assertThat(summary.incomes().available().detail()).containsOnlyKeys("marcelo", "luana");
-		assertThat(summary.incomes().transactions().detail()).containsOnlyKeys("luana");
-		assertThat(summary.incomes().available().total().value()).isEqualByComparingTo("700");
-		assertThat(summary.incomes().transactions().total().value()).isEqualByComparingTo("20");
+		assertThat(summary.errors()).extracting(SummaryError::owner).containsExactly("luana", "marcelo");
 	}
 
 	@Test
@@ -163,33 +101,59 @@ class SummaryServiceTest {
 		when(accountService.getAccounts(null)).thenThrow(new AllOwnersFailedException());
 
 		assertThatThrownBy(() -> service.getSummary(null, null)).isInstanceOf(AllOwnersFailedException.class);
+		verify(incomesService, never()).summarize(any(), any(), any());
+	}
+
+	@Test
+	void defaultsToCurrentMonthWithoutParameters() {
+		accounts(owner("marcelo"));
+
+		service.getSummary(null, null);
+
+		verify(incomesService).summarize(any(), eq(MONTH_START),
+				eq(TODAY));
+	}
+
+	@Test
+	void usesDateFromUntilToday() {
+		accounts(owner("marcelo"));
+		LocalDate from = LocalDate.of(2026, 10, 10);
+
+		service.getSummary(from, null);
+
+		verify(incomesService).summarize(any(), eq(from),
+				eq(TODAY));
+	}
+
+	@Test
+	void usesFirstDayOfDateToMonthUntilDateTo() {
+		accounts(owner("marcelo"));
+		LocalDate to = LocalDate.of(2026, 9, 20);
+
+		service.getSummary(null, to);
+
+		verify(incomesService).summarize(any(), eq(LocalDate.of(2026, 9, 1)),
+				eq(to));
+	}
+
+	@Test
+	void usesBothDatesWhenGiven() {
+		accounts(owner("marcelo"));
+		LocalDate from = LocalDate.of(2026, 8, 5);
+		LocalDate to = LocalDate.of(2026, 9, 20);
+
+		service.getSummary(from, to);
+
+		verify(incomesService).summarize(any(), eq(from),
+				eq(to));
 	}
 
 	private void accounts(OwnerAccountsResult... owners) {
 		when(accountService.getAccounts(null)).thenReturn(new OwnersResponse<>(List.of(owners)));
 	}
 
-	private void page(String owner, String accountId, Transaction... txs) {
-		when(transactionService.getTransactions(eq(owner), eq(accountId), eq(MONTH_START), eq(TODAY), eq(null)))
-				.thenReturn(new TransactionPage(List.of(txs), null));
-	}
-
-	private static OwnerAccountsResult owner(String name, Account... accounts) {
-		return new OwnerAccountsResult(name, List.of(accounts), null);
-	}
-
-	private static Account bank(String id, String name, String balance) {
-		return account(id, name, AccountTypesEnum.BANK, balance, "BRL");
-	}
-
-	private static Account account(String id, String name, AccountTypesEnum type, String balance, String currency) {
-		return new Account(id, "item", type, null, name, null, new BigDecimal(balance), currency, null);
-	}
-
-	private static Transaction tx(String id, String description, String amount, String currency,
-										  TransactionTypesEnum type) {
-		return new Transaction(id, Instant.parse("2026-11-10T12:00:00Z").atZone(ZONE).toOffsetDateTime(),
-				description, new BigDecimal(amount), currency, type, "POSTED", null);
+	private static OwnerAccountsResult owner(String name) {
+		return new OwnerAccountsResult(name, List.of(), null);
 	}
 
 }

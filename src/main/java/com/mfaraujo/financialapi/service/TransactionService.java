@@ -3,6 +3,7 @@ package com.mfaraujo.financialapi.service;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 import com.mfaraujo.financialapi.client.PluggyClient;
@@ -33,6 +34,19 @@ public class TransactionService {
 				after);
 		List<Transaction> transactions = page.resultsOrEmpty().stream().map(PluggyMapper::toTransaction).toList();
 		return new TransactionPage(transactions, cursorFrom(page.next()));
+	}
+
+	/** Todas as transações do período, seguindo {@code nextCursor} até a última página. */
+	public List<Transaction> getAllTransactions(String owner, String accountId, LocalDate dateFrom, LocalDate dateTo) {
+		List<Transaction> all = new ArrayList<>();
+		String after = null;
+		do {
+			TransactionPage page = getTransactions(owner, accountId, dateFrom, dateTo, after);
+			all.addAll(page.transactions());
+			after = page.nextCursor();
+		}
+		while (after != null);
+		return all;
 	}
 
 	/** Extrai o valor de {@code after} da query string {@code next} da Pluggy. */
