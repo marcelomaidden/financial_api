@@ -17,5 +17,13 @@ public record PluggyTransaction(
 		String type,
 		String status,
 		String category,
-		BigDecimal balance) {
+		BigDecimal balance,
+		BigDecimal amountInAccountCurrency,
+		CreditCardMetadata creditCardMetadata) {
+
+	/** {@code billId} só vem preenchido quando a compra já entrou em uma fatura. */
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	public record CreditCardMetadata(String billId) {
+	}
+
 }

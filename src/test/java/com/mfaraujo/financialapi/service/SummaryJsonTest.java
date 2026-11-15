@@ -1,18 +1,23 @@
 package com.mfaraujo.financialapi.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
 
 import com.mfaraujo.financialapi.domain.enums.AccountTypesEnum;
 import com.mfaraujo.financialapi.domain.enums.TransactionTypesEnum;
 import com.mfaraujo.financialapi.domain.model.Account;
+import com.mfaraujo.financialapi.domain.model.Bill;
 import com.mfaraujo.financialapi.domain.model.Transaction;
 import com.mfaraujo.financialapi.domain.result.OwnerAccountsResult;
 import com.mfaraujo.financialapi.resource.dto.ApiError;
@@ -28,32 +33,24 @@ class SummaryJsonTest {
 
 	private static final LocalDate TODAY = LocalDate.of(2026, 11, 15);
 
-	@Test
-	void serializesIncomesPartialAndErrors() {
-		AccountService accountService = mock(AccountService.class);
-		TransactionService transactionService = mock(TransactionService.class);
-		Account nubank = new Account("m1", "item", AccountTypesEnum.BANK, null, "Nubank", null,
-				new BigDecimal("500.50"), "BRL", null);
-		ApiError error = new ApiError(502, "Bad Gateway", "Erro ao consultar a Pluggy");
-		when(accountService.getAccounts(null)).thenReturn(new OwnersResponse<>(List.of(
-				new OwnerAccountsResult("marcelo", List.of(nubank), null),
-				new OwnerAccountsResult("luana", List.of(), error))));
-		when(transactionService.getAllTransactions("marcelo", "m1", LocalDate.of(2026, 11, 1), TODAY))
-				.thenReturn(List.of(new Transaction("t1", null, "PIX Recebido", new BigDecimal("19.99"), "BRL",
-						TransactionTypesEnum.CREDIT, "POSTED", null)));
-		Clock clock = Clock.fixed(TODAY.atTime(12, 0).atZone(ZONE).toInstant(), ZONE);
-		SummaryService service = new SummaryService(accountService, new IncomesSummaryService(transactionService),
-				clock);
+	private static final OffsetDateTime DATE = OffsetDateTime.parse("2026-11-10T12:00:00Z");
 
-		JsonNode json = JsonMapper.builder().build().valueToTree(service.getSummary(null, null));
+	@Test
+	void serializesIncomesExpensesPartialAndErrors() {
+		JsonNode json = summaryJson();
 
 		assertThat(json.path("partial").asBoolean()).isTrue();
 		assertThat(json.path("errors")).hasSize(1);
 		assertThat(json.path("errors").get(0).path("owner").asString()).isEqualTo("luana");
 		assertThat(json.path("errors").get(0).path("status").asInt()).isEqualTo(502);
 		assertThat(json.path("errors").get(0).path("message").asString()).isEqualTo("Erro ao consultar a Pluggy");
+	}
 
-		JsonNode available = json.path("incomes").path("available");
+	@Test
+	void serializesIncomes() {
+		JsonNode incomes = summaryJson().path("incomes");
+
+		JsonNode available = incomes.path("available");
 		assertThat(available.path("total").path("value").decimalValue()).isEqualByComparingTo("500.50");
 		assertThat(available.path("total").path("currencyCode").asString()).isEqualTo("BRL");
 		JsonNode account = available.path("detail").path("marcelo").get(0);
@@ -62,7 +59,7 @@ class SummaryJsonTest {
 		assertThat(account.path("balance").decimalValue()).isEqualByComparingTo("500.50");
 		assertThat(account.path("currencyCode").asString()).isEqualTo("BRL");
 
-		JsonNode transactions = json.path("incomes").path("transactions");
+		JsonNode transactions = incomes.path("transactions");
 		assertThat(transactions.path("total").path("value").decimalValue()).isEqualByComparingTo("19.99");
 		JsonNode tx = transactions.path("detail").path("marcelo").get(0);
 		assertThat(tx.path("id").asString()).isEqualTo("t1");
@@ -73,6 +70,77 @@ class SummaryJsonTest {
 		assertThat(tx.has("date")).isTrue();
 		assertThat(available.path("detail").has("luana")).isFalse();
 		assertThat(transactions.path("detail").has("luana")).isFalse();
+	}
+
+	@Test
+	void serializesExpensesOwed() {
+		JsonNode owed = summaryJson().path("expenses").path("owed");
+
+		assertThat(owed.path("total").path("value").decimalValue()).isEqualByComparingTo("250.40");
+		assertThat(owed.path("total").path("currencyCode").asString()).isEqualTo("BRL");
+		JsonNode bill = owed.path("detail").path("marcelo").get(0);
+		assertThat(bill.path("id").asString()).isEqualTo("b1");
+		assertThat(bill.path("accountId").asString()).isEqualTo("c1");
+		assertThat(bill.path("name").asString()).isEqualTo("Cartão Nubank");
+		assertThat(bill.has("dueDate")).isTrue();
+		assertThat(bill.path("totalAmount").decimalValue()).isEqualByComparingTo("250.40");
+		assertThat(bill.path("currencyCode").asString()).isEqualTo("BRL");
+		assertThat(owed.path("detail").has("luana")).isFalse();
+	}
+
+	@Test
+	void serializesExpensesTransactionsWithAmountInAccountCurrencyOnlyForForeignPurchases() {
+		JsonNode transactions = summaryJson().path("expenses").path("transactions");
+
+		assertThat(transactions.path("total").path("value").decimalValue()).isEqualByComparingTo("328.19");
+		assertThat(transactions.path("total").path("currencyCode").asString()).isEqualTo("BRL");
+		JsonNode usd = transactions.path("detail").path("marcelo").get(0);
+		assertThat(usd.path("id").asString()).isEqualTo("p1");
+		assertThat(usd.path("accountId").asString()).isEqualTo("c1");
+		assertThat(usd.path("description").asString()).isEqualTo("Netflix");
+		assertThat(usd.path("currencyCode").asString()).isEqualTo("USD");
+		assertThat(usd.path("amount").decimalValue()).isEqualByComparingTo("58");
+		assertThat(usd.path("amountInAccountCurrency").decimalValue()).isEqualByComparingTo("298.19");
+		assertThat(usd.has("date")).isTrue();
+		assertThat(usd.path("category").asString()).isEqualTo("Video streaming");
+		JsonNode brl = transactions.path("detail").path("marcelo").get(1);
+		assertThat(brl.path("currencyCode").asString()).isEqualTo("BRL");
+		assertThat(brl.has("amountInAccountCurrency")).isFalse();
+		assertThat(transactions.path("detail").has("luana")).isFalse();
+	}
+
+	private JsonNode summaryJson() {
+		AccountService accountService = mock(AccountService.class);
+		TransactionService transactionService = mock(TransactionService.class);
+		BillService billService = mock(BillService.class);
+		Account nubank = new Account("m1", "item", AccountTypesEnum.BANK, null, "Nubank", null,
+				new BigDecimal("500.50"), "BRL", null);
+		Account card = new Account("c1", "item", AccountTypesEnum.CREDIT, null, "Cartão Nubank", null,
+				new BigDecimal("320"), "BRL", null);
+		ApiError error = new ApiError(502, "Bad Gateway", "Erro ao consultar a Pluggy");
+		when(accountService.getAccounts(null)).thenReturn(new OwnersResponse<>(List.of(
+				new OwnerAccountsResult("marcelo", List.of(nubank, card), null),
+				new OwnerAccountsResult("luana", List.of(), error))));
+		when(transactionService.getAllTransactions(anyString(), anyString(), any(),
+				any())).thenReturn(List.of());
+		when(transactionService.getAllTransactions("marcelo", "m1", LocalDate.of(2026, 11, 1), TODAY))
+				.thenReturn(List.of(new Transaction("t1", DATE, "PIX Recebido", new BigDecimal("19.99"), "BRL",
+						TransactionTypesEnum.CREDIT, "POSTED", null, null, null)));
+		when(transactionService.getAllTransactions("marcelo", "c1", LocalDate.of(2026, 10, 1), TODAY))
+				.thenReturn(List.of(
+						new Transaction("p1", DATE, "Netflix", new BigDecimal("58"), "USD",
+								TransactionTypesEnum.DEBIT, "PENDING", "Video streaming", null,
+								new BigDecimal("298.19")),
+						new Transaction("p2", DATE, "Mercado", new BigDecimal("30"), "BRL",
+								TransactionTypesEnum.DEBIT, "PENDING", "Groceries", null, null)));
+		when(billService.getAllBills("marcelo", "c1")).thenReturn(List.of(new Bill("b1",
+				LocalDateTime.of(2026, 11, 20, 0, 0), LocalDateTime.of(2026, 11, 13, 0, 0),
+				new BigDecimal("250.40"), "BRL", new BigDecimal("25"))));
+		Clock clock = Clock.fixed(TODAY.atTime(12, 0).atZone(ZONE).toInstant(), ZONE);
+		SummaryService service = new SummaryService(accountService, new IncomesSummaryService(transactionService),
+				new ExpensesSummaryService(billService, transactionService), clock);
+
+		return JsonMapper.builder().build().valueToTree(service.getSummary(null, null));
 	}
 
 }

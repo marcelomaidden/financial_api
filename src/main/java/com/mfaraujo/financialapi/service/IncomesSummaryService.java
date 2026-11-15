@@ -1,8 +1,5 @@
 package com.mfaraujo.financialapi.service;
 
-import static com.mfaraujo.financialapi.domain.enums.CurrencyEnum.BRL;
-
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -17,7 +14,6 @@ import com.mfaraujo.financialapi.resource.dto.ApiError;
 import com.mfaraujo.financialapi.resource.dto.IncomeAccount;
 import com.mfaraujo.financialapi.resource.dto.IncomeTransaction;
 import com.mfaraujo.financialapi.resource.dto.IncomesSummary;
-import com.mfaraujo.financialapi.resource.dto.Money;
 import com.mfaraujo.financialapi.resource.dto.SummaryError;
 import com.mfaraujo.financialapi.resource.dto.SummarySection;
 import org.slf4j.Logger;
@@ -81,10 +77,10 @@ public class IncomesSummaryService {
 
 	private IncomesSummary incomesSummary(Map<String, List<IncomeAccount>> availableDetail,
 			Map<String, List<IncomeTransaction>> transactionsDetail) {
-		Money totalBalance = brl(availableDetail.values().stream().flatMap(List::stream)
+		var totalBalance = SummaryTotals.brl(availableDetail.values().stream().flatMap(List::stream)
 				.map(IncomeAccount::balance).toList());
 
-		Money totalTransactions = brl(transactionsDetail.values().stream().flatMap(List::stream)
+		var totalTransactions = SummaryTotals.brl(transactionsDetail.values().stream().flatMap(List::stream)
 				.map(IncomeTransaction::amount).toList());
 
 		return new IncomesSummary(
@@ -104,10 +100,6 @@ public class IncomesSummaryService {
 			}
 		}
 		return incomes;
-	}
-
-	private static Money brl(List<BigDecimal> values) {
-		return new Money(values.stream().reduce(BigDecimal.ZERO, BigDecimal::add), BRL.getType());
 	}
 
 }

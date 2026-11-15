@@ -73,6 +73,7 @@ proxy, por exemplo `./gradlew bootRun -Djavax.net.ssl.trustStore=/etc/ssl/certs/
 | `GET /credit-cards?owner=` | Cartões de crédito por dono |
 | `GET /owners/{owner}/accounts/{accountId}/transactions?dateFrom=&dateTo=&after=` | Transações de uma conta. Datas em `yyyy-mm-dd`. Para a próxima página, envie `after` com o `nextCursor` da resposta anterior |
 | `GET /owners/{owner}/accounts/{accountId}/bills?page=&pageSize=` | Faturas de uma conta de cartão (`pageSize` até 500) |
+| `GET /summary?dateFrom=&dateTo=` | Resumo dos donos em BRL: `incomes` (o que há e o que entrou nas contas bancárias) e `expenses` (o que o cartão cobra). Datas em `yyyy-mm-dd` |
 
 Em `/accounts` e `/credit-cards`, a falha de um dono não descarta os demais: a
 resposta é 200 e a entrada do dono com falha traz `error`. Confira o campo
@@ -90,6 +91,60 @@ resposta é 200 e a entrada do dono com falha traz `error`. Confira o campo
 
 O `id` de cada conta vale só para o dono que o devolveu. Use o mesmo `owner` nas
 rotas de transações e faturas.
+
+## Resumo (`GET /summary`)
+
+Soma, em BRL, o que os donos têm e devem. Só entram contas e valores em BRL.
+
+| Parte | O que traz |
+|---|---|
+| `incomes.available` | Saldo atual das contas `BANK`. Não depende do período |
+| `incomes.transactions` | Entradas (`CREDIT`) das contas `BANK` no período |
+| `expenses.owed` | Faturas dos cartões com `dueDate` no período, até o fim do mês de `dateTo`. Não informa se a fatura já foi paga |
+| `expenses.transactions` | Compras do cartão ainda sem fatura (`DEBIT`, `PENDING`, sem `billId`). `amountInAccountCurrency` aparece só em compra fora de BRL, e o total usa esse valor |
+
+Cada parte tem `total` (`value` e `currencyCode`) e `detail`, um mapa de dono
+para a lista dele. `dateTo` é opcional e assume hoje. `dateFrom` é opcional e
+assume o dia 1 do mês de `dateTo`, exceto em `expenses.transactions`, onde
+assume o dia 1 do mês anterior (uma compra do mês passado ainda sem fatura
+pertence à fatura aberta).
+
+Se a consulta de um dono falhar, a resposta é 200, `partial` é `true`, o dono
+sai da parte afetada e entra em `errors`. Se as contas falharem para todos os
+donos, a resposta é 502.
+
+```json
+{
+  "incomes": {
+    "available": {
+      "total": { "value": 500.50, "currencyCode": "BRL" },
+      "detail": { "marcelo": [ { "id": "...", "name": "Nubank", "balance": 500.50, "currencyCode": "BRL" } ] }
+    },
+    "transactions": {
+      "total": { "value": 19.99, "currencyCode": "BRL" },
+      "detail": { "marcelo": [ { "id": "...", "description": "PIX Recebido", "amount": 19.99,
+                                 "currencyCode": "BRL", "date": "...", "accountId": "..." } ] }
+    }
+  },
+  "expenses": {
+    "owed": {
+      "total": { "value": 250.40, "currencyCode": "BRL" },
+      "detail": { "marcelo": [ { "id": "...", "accountId": "...", "name": "Cartão Nubank",
+                                 "dueDate": "2026-11-20T00:00:00", "totalAmount": 250.40, "currencyCode": "BRL" } ] }
+    },
+    "transactions": {
+      "total": { "value": 328.19, "currencyCode": "BRL" },
+      "detail": { "marcelo": [
+        { "id": "...", "accountId": "...", "description": "Netflix", "currencyCode": "USD", "amount": 58,
+          "date": "...", "category": "Video streaming", "amountInAccountCurrency": 298.19 },
+        { "id": "...", "accountId": "...", "description": "Mercado", "currencyCode": "BRL", "amount": 30,
+          "date": "...", "category": "Groceries" } ] }
+    }
+  },
+  "partial": true,
+  "errors": [ { "owner": "luana", "status": 502, "message": "Erro ao consultar a Pluggy" } ]
+}
+```
 
 Erros seguem o formato `{"status", "error", "message"}`:
 

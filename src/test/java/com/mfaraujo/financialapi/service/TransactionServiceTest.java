@@ -69,7 +69,7 @@ class TransactionServiceTest {
 
 	private static PluggyTransaction pluggyTx(String id) {
 		return new PluggyTransaction(id, "a1", OffsetDateTime.parse("2026-11-10T12:00:00Z"), "d",
-				new BigDecimal("1"), "BRL", "CREDIT", "POSTED", null, null);
+				new BigDecimal("1"), "BRL", "CREDIT", "POSTED", null, null, null, null);
 	}
 
 }

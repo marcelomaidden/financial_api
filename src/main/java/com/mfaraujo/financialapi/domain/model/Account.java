@@ -24,6 +24,11 @@ public record Account(
 		return AccountTypesEnum.CREDIT == type;
 	}
 
+	/** Cartão de crédito com conta em BRL. */
+	public boolean isBrlCreditCard() {
+		return AccountTypesEnum.CREDIT == type && CurrencyEnum.BRL.getType().equals(currencyCode);
+	}
+
 	/** Conta bancária em BRL e com saldo informado. */
 	public boolean isBrlBankAccount() {
 		return AccountTypesEnum.BANK == type && CurrencyEnum.BRL.getType().equals(currencyCode) && balance != null;

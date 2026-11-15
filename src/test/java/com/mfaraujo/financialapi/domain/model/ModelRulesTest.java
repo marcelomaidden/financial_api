@@ -35,6 +35,57 @@ class ModelRulesTest {
 		assertThat(tx(TransactionTypesEnum.CREDIT, "BRL", null).isBrlCredit()).isFalse();
 	}
 
+	@Test
+	void brlCreditCardNeedsCreditTypeAndBrl() {
+		assertThat(account(AccountTypesEnum.CREDIT, "BRL", "1").isBrlCreditCard()).isTrue();
+		assertThat(account(AccountTypesEnum.CREDIT, "USD", "1").isBrlCreditCard()).isFalse();
+		assertThat(account(AccountTypesEnum.CREDIT, null, "1").isBrlCreditCard()).isFalse();
+		assertThat(account(AccountTypesEnum.BANK, "BRL", "1").isBrlCreditCard()).isFalse();
+	}
+
+	@Test
+	void unbilledPendingDebitNeedsDebitPendingAndNoBillId() {
+		assertThat(purchase(TransactionTypesEnum.DEBIT, "PENDING", null).isUnbilledPendingDebit()).isTrue();
+		assertThat(purchase(TransactionTypesEnum.DEBIT, "PENDING", "").isUnbilledPendingDebit()).isTrue();
+		assertThat(purchase(TransactionTypesEnum.DEBIT, "PENDING", " ").isUnbilledPendingDebit()).isTrue();
+		assertThat(purchase(TransactionTypesEnum.DEBIT, "PENDING", "bill-1").isUnbilledPendingDebit()).isFalse();
+		assertThat(purchase(TransactionTypesEnum.DEBIT, "POSTED", null).isUnbilledPendingDebit()).isFalse();
+		assertThat(purchase(TransactionTypesEnum.DEBIT, null, null).isUnbilledPendingDebit()).isFalse();
+		assertThat(purchase(TransactionTypesEnum.CREDIT, "PENDING", null).isUnbilledPendingDebit()).isFalse();
+		assertThat(purchase(TransactionTypesEnum.UNKNOWN, "PENDING", null).isUnbilledPendingDebit()).isFalse();
+	}
+
+	@Test
+	void amountInBrlUsesAmountForBrlAndAccountCurrencyForOthers() {
+		assertThat(foreign("BRL", "30", null).amountInBrl()).isEqualByComparingTo("30");
+		assertThat(foreign("BRL", "30", "99").amountInBrl()).isEqualByComparingTo("30");
+		assertThat(foreign("USD", "58", "298.19").amountInBrl()).isEqualByComparingTo("298.19");
+		assertThat(foreign("USD", "58", null).amountInBrl()).isNull();
+		assertThat(foreign("BRL", null, null).amountInBrl()).isNull();
+	}
+
+	@Test
+	void brlBillNeedsBrlAndAmount() {
+		assertThat(bill("BRL", "100").isBrl()).isTrue();
+		assertThat(bill("USD", "100").isBrl()).isFalse();
+		assertThat(bill(null, "100").isBrl()).isFalse();
+		assertThat(bill("BRL", null).isBrl()).isFalse();
+	}
+
+	private static Transaction purchase(TransactionTypesEnum type, String status, String billId) {
+		return new Transaction("t", null, "d", BigDecimal.TEN, "BRL", type, status, null, billId, null);
+	}
+
+	private static Transaction foreign(String currency, String amount, String inAccountCurrency) {
+		return new Transaction("t", null, "d", amount == null ? null : new BigDecimal(amount), currency,
+				TransactionTypesEnum.DEBIT, "PENDING", null, null,
+				inAccountCurrency == null ? null : new BigDecimal(inAccountCurrency));
+	}
+
+	private static Bill bill(String currency, String total) {
+		return new Bill("b", null, null, total == null ? null : new BigDecimal(total), currency, null);
+	}
+
 	private static Account account(AccountTypesEnum type, String currency, String balance) {
 		return new Account("a", "i", type, null, "n", null, balance == null ? null : new BigDecimal(balance),
 				currency, null);
@@ -42,7 +93,7 @@ class ModelRulesTest {
 
 	private static Transaction tx(TransactionTypesEnum type, String currency, String amount) {
 		return new Transaction("t", null, "d", amount == null ? null : new BigDecimal(amount), currency, type, null,
-				null);
+				null, null, null);
 	}
 
 }

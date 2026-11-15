@@ -137,7 +137,7 @@ class IncomesSummaryServiceTest {
 	private static Transaction tx(String id, String description, String amount, String currency,
 			TransactionTypesEnum type) {
 		return new Transaction(id, Instant.parse("2026-11-10T12:00:00Z").atZone(ZONE).toOffsetDateTime(),
-				description, new BigDecimal(amount), currency, type, "POSTED", null);
+				description, new BigDecimal(amount), currency, type, "POSTED", null, null, null);
 	}
 
 }

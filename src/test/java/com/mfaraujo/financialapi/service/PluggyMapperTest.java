@@ -64,14 +64,34 @@ class PluggyMapperTest {
 	void mapsTransactionAndUnknownType() {
 		OffsetDateTime date = OffsetDateTime.parse("2026-11-10T12:00:00Z");
 		PluggyTransaction source = new PluggyTransaction("t1", "a1", date, "PIX Recebido", new BigDecimal("19.99"),
-				"BRL", "CREDIT", "POSTED", "Transfer", null);
+				"BRL", "CREDIT", "POSTED", "Transfer", null, null, null);
 
 		Transaction tx = PluggyMapper.toTransaction(source);
 
 		assertThat(tx).isEqualTo(new Transaction("t1", date, "PIX Recebido", new BigDecimal("19.99"), "BRL",
-				TransactionTypesEnum.CREDIT, "POSTED", "Transfer"));
+				TransactionTypesEnum.CREDIT, "POSTED", "Transfer", null, null));
 		assertThat(PluggyMapper.toTransaction(new PluggyTransaction("t2", "a1", date, "x", BigDecimal.ONE, "BRL",
-				"REFUND", null, null, null)).type()).isEqualTo(TransactionTypesEnum.UNKNOWN);
+				"REFUND", null, null, null, null, null)).type()).isEqualTo(TransactionTypesEnum.UNKNOWN);
+	}
+
+	@Test
+	void mapsBillIdAndAmountInAccountCurrency() {
+		OffsetDateTime date = OffsetDateTime.parse("2026-11-10T12:00:00Z");
+
+		Transaction billed = PluggyMapper.toTransaction(new PluggyTransaction("t1", "c1", date, "Netflix",
+				new BigDecimal("-58"), "USD", "DEBIT", "POSTED", null, null, new BigDecimal("-298.19"),
+				new PluggyTransaction.CreditCardMetadata("bill-1")));
+		Transaction unbilled = PluggyMapper.toTransaction(new PluggyTransaction("t2", "c1", date, "Mercado",
+				new BigDecimal("30"), "BRL", "DEBIT", "PENDING", null, null, null,
+				new PluggyTransaction.CreditCardMetadata(null)));
+		Transaction noMetadata = PluggyMapper.toTransaction(new PluggyTransaction("t3", "c1", date, "Padaria",
+				new BigDecimal("10"), "BRL", "DEBIT", "PENDING", null, null, null, null));
+
+		assertThat(billed.billId()).isEqualTo("bill-1");
+		assertThat(billed.amountInAccountCurrency()).isEqualByComparingTo("-298.19");
+		assertThat(unbilled.billId()).isNull();
+		assertThat(unbilled.amountInAccountCurrency()).isNull();
+		assertThat(noMetadata.billId()).isNull();
 	}
 
 	@Test

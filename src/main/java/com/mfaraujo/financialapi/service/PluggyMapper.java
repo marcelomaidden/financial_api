@@ -26,7 +26,9 @@ final class PluggyMapper {
 
 	static Transaction toTransaction(PluggyTransaction tx) {
 		return new Transaction(tx.id(), tx.date(), tx.description(), tx.amount(), tx.currencyCode(),
-				TransactionTypesEnum.fromPluggy(tx.type()), tx.status(), tx.category());
+				TransactionTypesEnum.fromPluggy(tx.type()), tx.status(), tx.category(),
+				tx.creditCardMetadata() == null ? null : tx.creditCardMetadata().billId(),
+				tx.amountInAccountCurrency());
 	}
 
 	static Bill toBill(PluggyBill bill) {
