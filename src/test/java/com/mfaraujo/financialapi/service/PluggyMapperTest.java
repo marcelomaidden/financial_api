@@ -6,13 +6,17 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.util.List;
 
 import com.mfaraujo.financialapi.client.dto.PluggyAccount;
 import com.mfaraujo.financialapi.client.dto.PluggyBill;
+import com.mfaraujo.financialapi.client.dto.PluggyLoan;
 import com.mfaraujo.financialapi.client.dto.PluggyTransaction;
 import com.mfaraujo.financialapi.domain.model.Account;
 import com.mfaraujo.financialapi.domain.enums.AccountTypesEnum;
+import com.mfaraujo.financialapi.domain.enums.LoanKindEnum;
 import com.mfaraujo.financialapi.domain.model.Bill;
+import com.mfaraujo.financialapi.domain.model.Loan;
 import com.mfaraujo.financialapi.domain.model.Transaction;
 import com.mfaraujo.financialapi.domain.enums.TransactionTypesEnum;
 import org.junit.jupiter.api.Test;
@@ -113,6 +117,113 @@ class PluggyMapperTest {
 	private static Transaction installmentTx(PluggyTransaction.CreditCardMetadata metadata) {
 		return PluggyMapper.toTransaction(new PluggyTransaction("t", "c1", OffsetDateTime.parse("2026-11-10T12:00:00Z"),
 				"Compra", new BigDecimal("100"), "BRL", "DEBIT", "PENDING", null, null, null, metadata));
+	}
+
+	@Test
+	void mapsACompleteLoan() {
+		PluggyLoan source = new PluggyLoan("l1", "item1", "0007", "Crédito Consignado", "CREDITO_PESSOAL_COM_CONSIGNACAO",
+				"LOAN", new BigDecimal("50000"), "BRL", LocalDateTime.of(2022, 8, 1, 0, 0),
+				LocalDateTime.of(2028, 1, 15, 0, 0), new PluggyLoan.Installments(120, 65, 55, 0),
+				new PluggyLoan.Payments(new BigDecimal("25000"), List.of(
+						release(false, LocalDateTime.of(2023, 7, 15, 0, 0), "680.50"))));
+
+		Loan loan = PluggyMapper.toLoan(source);
+
+		assertThat(loan.id()).isEqualTo("l1");
+		assertThat(loan.itemId()).isEqualTo("item1");
+		assertThat(loan.contractNumber()).isEqualTo("0007");
+		assertThat(loan.productName()).isEqualTo("Crédito Consignado");
+		assertThat(loan.kind()).isEqualTo(LoanKindEnum.LOAN);
+		assertThat(loan.type()).isEqualTo("CREDITO_PESSOAL_COM_CONSIGNACAO");
+		assertThat(loan.contractAmount()).isEqualByComparingTo("50000");
+		assertThat(loan.currencyCode()).isEqualTo("BRL");
+		assertThat(loan.contractDate()).isEqualTo(LocalDate.of(2022, 8, 1));
+		assertThat(loan.dueDate()).isEqualTo(LocalDate.of(2028, 1, 15));
+		assertThat(loan.installments()).isEqualTo(new Loan.Installments(120, 65, 55, 0));
+		assertThat(loan.outstandingBalance()).isEqualByComparingTo("25000");
+		assertThat(loan.lastPayment()).isEqualTo(new Loan.Payment(LocalDate.of(2023, 7, 15), new BigDecimal("680.50")));
+	}
+
+	@Test
+	void mapsALoanWithoutOptionalBlocks() {
+		PluggyLoan source = new PluggyLoan("l2", "item1", null, "Cheque especial", null,
+				"UNARRANGED_ACCOUNT_OVERDRAFT", null, "BRL", null, null, null, null);
+
+		Loan loan = PluggyMapper.toLoan(source);
+
+		assertThat(loan.kind()).isEqualTo(LoanKindEnum.UNARRANGED_ACCOUNT_OVERDRAFT);
+		assertThat(loan.installments()).isNull();
+		assertThat(loan.outstandingBalance()).isNull();
+		assertThat(loan.lastPayment()).isNull();
+		assertThat(loan.contractDate()).isNull();
+		assertThat(loan.dueDate()).isNull();
+		assertThat(loan.contractAmount()).isNull();
+	}
+
+	@Test
+	void keepsPartialInstallmentsWithNullFields() {
+		PluggyLoan source = loanWith(new PluggyLoan.Installments(24, null, null, null), null);
+
+		assertThat(PluggyMapper.toLoan(source).installments()).isEqualTo(new Loan.Installments(24, null, null, null));
+	}
+
+	@Test
+	void unknownKindBecomesUnknown() {
+		PluggyLoan source = new PluggyLoan("l3", "i", null, "x", null, "LEASING", null, "BRL", null, null, null, null);
+
+		assertThat(PluggyMapper.toLoan(source).kind()).isEqualTo(LoanKindEnum.UNKNOWN);
+	}
+
+	@Test
+	void lastPaymentIsTheMostRecentRegularOne() {
+		PluggyLoan source = loanWith(null, new PluggyLoan.Payments(BigDecimal.TEN, List.of(
+				release(false, LocalDateTime.of(2023, 5, 15, 0, 0), "600"),
+				release(false, LocalDateTime.of(2023, 7, 15, 0, 0), "680"),
+				release(false, LocalDateTime.of(2023, 6, 15, 0, 0), "650"))));
+
+		assertThat(PluggyMapper.toLoan(source).lastPayment())
+				.isEqualTo(new Loan.Payment(LocalDate.of(2023, 7, 15), new BigDecimal("680")));
+	}
+
+	@Test
+	void lastPaymentIgnoresAnOverParcelPayment() {
+		PluggyLoan source = loanWith(null, new PluggyLoan.Payments(BigDecimal.TEN, List.of(
+				release(false, LocalDateTime.of(2023, 7, 15, 0, 0), "680"),
+				release(true, LocalDateTime.of(2023, 8, 1, 0, 0), "1000"))));
+
+		assertThat(PluggyMapper.toLoan(source).lastPayment())
+				.isEqualTo(new Loan.Payment(LocalDate.of(2023, 7, 15), new BigDecimal("680")));
+	}
+
+	@Test
+	void lastPaymentIsNullWhenThereAreOnlyOverParcelOrIncompletePayments() {
+		PluggyLoan onlyOverParcel = loanWith(null, new PluggyLoan.Payments(BigDecimal.TEN, List.of(
+				release(true, LocalDateTime.of(2023, 8, 1, 0, 0), "1000"))));
+		PluggyLoan incomplete = loanWith(null, new PluggyLoan.Payments(BigDecimal.TEN, List.of(
+				new PluggyLoan.Release(false, null, new BigDecimal("1")),
+				new PluggyLoan.Release(false, LocalDateTime.of(2023, 8, 1, 0, 0), null))));
+		PluggyLoan noReleases = loanWith(null, new PluggyLoan.Payments(BigDecimal.TEN, null));
+
+		assertThat(PluggyMapper.toLoan(onlyOverParcel).lastPayment()).isNull();
+		assertThat(PluggyMapper.toLoan(incomplete).lastPayment()).isNull();
+		assertThat(PluggyMapper.toLoan(noReleases).lastPayment()).isNull();
+		assertThat(PluggyMapper.toLoan(noReleases).outstandingBalance()).isEqualByComparingTo("10");
+	}
+
+	@Test
+	void treatsAMissingOverParcelFlagAsARegularPayment() {
+		PluggyLoan source = loanWith(null, new PluggyLoan.Payments(BigDecimal.TEN, List.of(
+				new PluggyLoan.Release(null, LocalDateTime.of(2023, 7, 15, 0, 0), new BigDecimal("680")))));
+
+		assertThat(PluggyMapper.toLoan(source).lastPayment()).isNotNull();
+	}
+
+	private static PluggyLoan loanWith(PluggyLoan.Installments installments, PluggyLoan.Payments payments) {
+		return new PluggyLoan("l", "i", null, "x", null, "LOAN", null, "BRL", null, null, installments, payments);
+	}
+
+	private static PluggyLoan.Release release(boolean overParcel, LocalDateTime paidDate, String amount) {
+		return new PluggyLoan.Release(overParcel, paidDate, new BigDecimal(amount));
 	}
 
 	@Test

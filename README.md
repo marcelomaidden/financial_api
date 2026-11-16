@@ -71,6 +71,7 @@ proxy, por exemplo `./gradlew bootRun -Djavax.net.ssl.trustStore=/etc/ssl/certs/
 |---|---|
 | `GET /accounts?owner=` | Contas por dono. Sem `owner`, traz todos os donos |
 | `GET /credit-cards?owner=` | Cartões de crédito por dono |
+| `GET /loans?owner=` | Empréstimos e financiamentos por dono. Sem `owner`, traz todos os donos |
 | `GET /owners/{owner}/accounts/{accountId}/transactions?dateFrom=&dateTo=&after=` | Transações de uma conta. Datas em `yyyy-mm-dd`. Para a próxima página, envie `after` com o `nextCursor` da resposta anterior |
 | `GET /owners/{owner}/accounts/{accountId}/bills?page=&pageSize=` | Faturas de uma conta de cartão (`pageSize` até 500) |
 | `GET /summary?dateFrom=&dateTo=` | Resumo dos donos em BRL: `incomes` (o que há e o que entrou nas contas bancárias) e `expenses` (o que o cartão cobra). Datas em `yyyy-mm-dd` |
@@ -151,6 +152,44 @@ donos, a resposta é 502.
   },
   "partial": true,
   "errors": [ { "owner": "luana", "status": 502, "message": "Erro ao consultar a Pluggy" } ]
+}
+```
+
+## Empréstimos (`GET /loans`)
+
+Traz os empréstimos de todos os itens de cada dono, com a mesma regra de falha
+parcial de `/accounts`: a entrada do dono com falha traz `error`, e a resposta é
+502 se todos falharem. A instituição só devolve o que informa, então os campos
+opcionais podem vir `null`. Só `id`, `itemId`, `productName`, `kind` e
+`currencyCode` são garantidos.
+
+| Campo | O que é |
+|---|---|
+| `kind` | `LOAN`, `FINANCING`, `INVOICE_FINANCING`, `UNARRANGED_ACCOUNT_OVERDRAFT` ou `UNKNOWN` |
+| `type` | Tipo do Open Finance, como texto |
+| `dueDate` | Fim do contrato |
+| `installments` | `total`, `paid`, `remaining` e `pastDue` |
+| `outstandingBalance` | Saldo para quitar o contrato |
+| `lastPayment` | Pagamento regular mais recente (`paidDate` e `paidAmount`), sem contar pagamento avulso |
+
+A API não informa o valor da parcela mensal.
+
+```json
+{
+  "owners": [
+    { "owner": "marcelo",
+      "loans": [ {
+        "id": "...", "itemId": "...", "contractNumber": "000000721792794",
+        "productName": "Crédito Pessoal Consignado", "kind": "LOAN",
+        "type": "CREDITO_PESSOAL_COM_CONSIGNACAO", "contractAmount": 50000, "currencyCode": "BRL",
+        "contractDate": "2022-08-01", "dueDate": "2028-01-15",
+        "installments": { "total": 120, "paid": 65, "remaining": 55, "pastDue": 0 },
+        "outstandingBalance": 25000,
+        "lastPayment": { "paidDate": "2023-07-15", "paidAmount": 680.50 } } ],
+      "error": null },
+    { "owner": "luana", "loans": [],
+      "error": { "status": 502, "error": "Bad Gateway", "message": "..." } }
+  ]
 }
 ```
 

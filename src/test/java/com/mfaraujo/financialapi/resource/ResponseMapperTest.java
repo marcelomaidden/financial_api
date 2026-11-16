@@ -10,20 +10,25 @@ import java.util.List;
 
 import com.mfaraujo.financialapi.domain.model.Account;
 import com.mfaraujo.financialapi.domain.enums.AccountTypesEnum;
+import com.mfaraujo.financialapi.domain.enums.LoanKindEnum;
 import com.mfaraujo.financialapi.domain.model.Bill;
+import com.mfaraujo.financialapi.domain.model.Loan;
 import com.mfaraujo.financialapi.domain.model.Transaction;
 import com.mfaraujo.financialapi.domain.enums.TransactionTypesEnum;
 import com.mfaraujo.financialapi.domain.result.BillPage;
 import com.mfaraujo.financialapi.domain.result.OwnerAccountsResult;
 import com.mfaraujo.financialapi.domain.result.OwnerCreditCardsResult;
+import com.mfaraujo.financialapi.domain.result.OwnerLoansResult;
 import com.mfaraujo.financialapi.domain.result.TransactionPage;
 import com.mfaraujo.financialapi.resource.dto.AccountResponse;
 import com.mfaraujo.financialapi.resource.dto.ApiError;
 import com.mfaraujo.financialapi.resource.dto.BillResponse;
 import com.mfaraujo.financialapi.resource.dto.BillsResponse;
 import com.mfaraujo.financialapi.resource.dto.CreditCardResponse;
+import com.mfaraujo.financialapi.resource.dto.LoanResponse;
 import com.mfaraujo.financialapi.resource.dto.OwnerAccounts;
 import com.mfaraujo.financialapi.resource.dto.OwnerCreditCards;
+import com.mfaraujo.financialapi.resource.dto.OwnerLoans;
 import com.mfaraujo.financialapi.resource.dto.OwnersResponse;
 import com.mfaraujo.financialapi.resource.dto.TransactionResponse;
 import com.mfaraujo.financialapi.resource.dto.TransactionsResponse;
@@ -117,6 +122,52 @@ class ResponseMapperTest {
 		assertThat(accounts.owners().get(1).error()).isEqualTo(error);
 		assertThat(cards.owners().get(0).creditCards()).isEmpty();
 		assertThat(cards.owners().get(0).error()).isEqualTo(error);
+	}
+
+	@Test
+	void mapsACompleteLoan() {
+		Loan loan = new Loan("l1", "item1", "0007", "Crédito Consignado", LoanKindEnum.LOAN,
+				"CREDITO_PESSOAL_COM_CONSIGNACAO", new BigDecimal("50000"), "BRL", LocalDate.of(2022, 8, 1),
+				LocalDate.of(2028, 1, 15), new Loan.Installments(120, 65, 55, 0), new BigDecimal("25000"),
+				new Loan.Payment(LocalDate.of(2023, 7, 15), new BigDecimal("680.50")));
+
+		LoanResponse response = ResponseMapper.toLoan(loan);
+
+		assertThat(response).isEqualTo(new LoanResponse("l1", "item1", "0007", "Crédito Consignado", "LOAN",
+				"CREDITO_PESSOAL_COM_CONSIGNACAO", new BigDecimal("50000"), "BRL", LocalDate.of(2022, 8, 1),
+				LocalDate.of(2028, 1, 15), new LoanResponse.Installments(120, 65, 55, 0), new BigDecimal("25000"),
+				new LoanResponse.LastPayment(LocalDate.of(2023, 7, 15), new BigDecimal("680.50"))));
+	}
+
+	@Test
+	void mapsALoanWithNullFieldsAndKindAsText() {
+		Loan loan = new Loan("l2", "item1", null, "Cheque especial", LoanKindEnum.UNKNOWN, null, null, "BRL", null,
+				null, null, null, null);
+
+		LoanResponse response = ResponseMapper.toLoan(loan);
+
+		assertThat(response.kind()).isEqualTo("UNKNOWN");
+		assertThat(response.installments()).isNull();
+		assertThat(response.lastPayment()).isNull();
+		assertThat(response.outstandingBalance()).isNull();
+		assertThat(response.contractAmount()).isNull();
+	}
+
+	@Test
+	void keepsOwnerErrorInLoans() {
+		ApiError error = new ApiError(502, "Bad Gateway", "falhou");
+		Loan loan = new Loan("l1", "i", null, "x", LoanKindEnum.FINANCING, null, null, "BRL", null, null, null, null,
+				null);
+
+		OwnersResponse<OwnerLoans> loans = ResponseMapper.toLoans(new OwnersResponse<>(List.of(
+				new OwnerLoansResult("marcelo", List.of(loan), null),
+				new OwnerLoansResult("luana", List.of(), error))));
+
+		assertThat(loans.owners()).extracting(OwnerLoans::owner).containsExactly("marcelo", "luana");
+		assertThat(loans.owners().get(0).loans()).extracting(LoanResponse::kind).containsExactly("FINANCING");
+		assertThat(loans.owners().get(0).error()).isNull();
+		assertThat(loans.owners().get(1).loans()).isEmpty();
+		assertThat(loans.owners().get(1).error()).isEqualTo(error);
 	}
 
 }

@@ -3,6 +3,7 @@ package com.mfaraujo.financialapi.client;
 import com.mfaraujo.financialapi.client.dto.PluggyAccount;
 import com.mfaraujo.financialapi.client.dto.PluggyBill;
 import com.mfaraujo.financialapi.client.dto.PluggyCursorPage;
+import com.mfaraujo.financialapi.client.dto.PluggyLoan;
 import com.mfaraujo.financialapi.client.dto.PluggyPage;
 import com.mfaraujo.financialapi.client.dto.PluggyTransaction;
 
@@ -33,6 +34,9 @@ public interface PluggyApi {
 			@RequestParam("accountId") String accountId,
 			@RequestParam("createdAtFrom") String createdAtFrom,
 			@RequestParam(name = "after", required = false) String after);
+
+	@GetExchange("/loans")
+	PluggyPage<PluggyLoan> listLoans(@RequestParam("itemId") String itemId);
 
 	@GetExchange("/bills")
 	PluggyPage<PluggyBill> listBills(

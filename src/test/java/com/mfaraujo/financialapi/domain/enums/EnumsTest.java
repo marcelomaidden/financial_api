@@ -16,6 +16,17 @@ class EnumsTest {
 	}
 
 	@Test
+	void loanKindFromPluggyKnownNullAndUnknown() {
+		assertThat(LoanKindEnum.fromPluggy("LOAN")).isEqualTo(LoanKindEnum.LOAN);
+		assertThat(LoanKindEnum.fromPluggy("FINANCING")).isEqualTo(LoanKindEnum.FINANCING);
+		assertThat(LoanKindEnum.fromPluggy("INVOICE_FINANCING")).isEqualTo(LoanKindEnum.INVOICE_FINANCING);
+		assertThat(LoanKindEnum.fromPluggy("UNARRANGED_ACCOUNT_OVERDRAFT"))
+				.isEqualTo(LoanKindEnum.UNARRANGED_ACCOUNT_OVERDRAFT);
+		assertThat(LoanKindEnum.fromPluggy(null)).isEqualTo(LoanKindEnum.UNKNOWN);
+		assertThat(LoanKindEnum.fromPluggy("LEASING")).isEqualTo(LoanKindEnum.UNKNOWN);
+	}
+
+	@Test
 	void transactionTypeFromPluggyKnownNullAndUnknown() {
 		assertThat(TransactionTypesEnum.fromPluggy("CREDIT")).isEqualTo(TransactionTypesEnum.CREDIT);
 		assertThat(TransactionTypesEnum.fromPluggy("DEBIT")).isEqualTo(TransactionTypesEnum.DEBIT);

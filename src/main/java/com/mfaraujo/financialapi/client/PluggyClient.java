@@ -11,6 +11,7 @@ import com.mfaraujo.financialapi.client.dto.PluggyAccount;
 import com.mfaraujo.financialapi.client.dto.PluggyBill;
 import com.mfaraujo.financialapi.client.dto.PluggyCursorPage;
 import com.mfaraujo.financialapi.client.dto.PluggyErrorResponse;
+import com.mfaraujo.financialapi.client.dto.PluggyLoan;
 import com.mfaraujo.financialapi.client.dto.PluggyPage;
 import com.mfaraujo.financialapi.client.dto.PluggyTransaction;
 import com.mfaraujo.financialapi.config.PluggyProperties;
@@ -62,6 +63,10 @@ public class PluggyClient {
 
 	private static String formatDate(LocalDate date) {
 		return date == null ? null : DateTimeFormatter.ISO_LOCAL_DATE.format(date);
+	}
+
+	public PluggyPage<PluggyLoan> listLoans(String owner, String itemId) {
+		return api(owner).listLoans(itemId);
 	}
 
 	public PluggyPage<PluggyBill> listBills(String owner, String accountId, Integer page, Integer pageSize) {

@@ -5,11 +5,13 @@ import java.time.LocalDate;
 import com.mfaraujo.financialapi.resource.dto.BillsResponse;
 import com.mfaraujo.financialapi.resource.dto.OwnerAccounts;
 import com.mfaraujo.financialapi.resource.dto.OwnerCreditCards;
+import com.mfaraujo.financialapi.resource.dto.OwnerLoans;
 import com.mfaraujo.financialapi.resource.dto.OwnersResponse;
 import com.mfaraujo.financialapi.resource.dto.SummaryResponse;
 import com.mfaraujo.financialapi.resource.dto.TransactionsResponse;
 import com.mfaraujo.financialapi.service.AccountService;
 import com.mfaraujo.financialapi.service.BillService;
+import com.mfaraujo.financialapi.service.LoanService;
 import com.mfaraujo.financialapi.service.SummaryService;
 import com.mfaraujo.financialapi.service.TransactionService;
 import jakarta.validation.constraints.Max;
@@ -32,12 +34,15 @@ public class FinancialDataController {
 
 	private final SummaryService summaryService;
 
+	private final LoanService loanService;
+
 	public FinancialDataController(AccountService accountService, TransactionService transactionService,
-			BillService billService, SummaryService summaryService) {
+			BillService billService, SummaryService summaryService, LoanService loanService) {
 		this.accountService = accountService;
 		this.transactionService = transactionService;
 		this.billService = billService;
 		this.summaryService = summaryService;
+		this.loanService = loanService;
 	}
 
 	@GetMapping("/summary")
@@ -51,6 +56,11 @@ public class FinancialDataController {
 	@GetMapping("/accounts")
 	public OwnersResponse<OwnerAccounts> accounts(@RequestParam(required = false) String owner) {
 		return ResponseMapper.toAccounts(accountService.getAccounts(owner));
+	}
+
+	@GetMapping("/loans")
+	public OwnersResponse<OwnerLoans> loans(@RequestParam(required = false) String owner) {
+		return ResponseMapper.toLoans(loanService.getLoans(owner));
 	}
 
 	@GetMapping("/credit-cards")

@@ -1,11 +1,19 @@
 package com.mfaraujo.financialapi.service;
 
 import com.mfaraujo.financialapi.client.dto.PluggyAccount;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.List;
+
 import com.mfaraujo.financialapi.client.dto.PluggyBill;
+import com.mfaraujo.financialapi.client.dto.PluggyLoan;
 import com.mfaraujo.financialapi.client.dto.PluggyTransaction;
 import com.mfaraujo.financialapi.domain.model.Account;
 import com.mfaraujo.financialapi.domain.enums.AccountTypesEnum;
+import com.mfaraujo.financialapi.domain.enums.LoanKindEnum;
 import com.mfaraujo.financialapi.domain.model.Bill;
+import com.mfaraujo.financialapi.domain.model.Loan;
 import com.mfaraujo.financialapi.domain.model.Transaction;
 import com.mfaraujo.financialapi.domain.enums.TransactionTypesEnum;
 
@@ -37,6 +45,34 @@ final class PluggyMapper {
 			return null;
 		}
 		return new Transaction.Installment(metadata.installmentNumber(), metadata.totalInstallments());
+	}
+
+	static Loan toLoan(PluggyLoan loan) {
+		PluggyLoan.Installments installments = loan.installments();
+		PluggyLoan.Payments payments = loan.payments();
+		return new Loan(loan.id(), loan.itemId(), loan.contractNumber(), loan.productName(),
+				LoanKindEnum.fromPluggy(loan.kind()), loan.type(), loan.contractAmount(), loan.currencyCode(),
+				dayOf(loan.contractDate()), dayOf(loan.dueDate()),
+				installments == null ? null
+						: new Loan.Installments(installments.totalNumberOfInstallments(), installments.paidInstallments(),
+								installments.contractRemainingNumber(), installments.pastDueInstallments()),
+				payments == null ? null : payments.contractOutstandingBalance(),
+				payments == null ? null : lastRegularPayment(payments.releasesOrEmpty()));
+	}
+
+	/** Pagamento regular de maior data, ignorando o avulso e o que veio sem data ou valor. */
+	private static Loan.Payment lastRegularPayment(List<PluggyLoan.Release> releases) {
+		return releases.stream()
+				.filter(release -> !Boolean.TRUE.equals(release.isOverParcelPayment()))
+				.filter(release -> release.paidDate() != null && release.paidAmount() != null)
+				.max(Comparator.comparing(PluggyLoan.Release::paidDate))
+				.map(release -> new Loan.Payment(release.paidDate().toLocalDate(), release.paidAmount()))
+				.orElse(null);
+	}
+
+	/** As datas chegam à meia-noite UTC: vale o dia lido, sem conversão de fuso. */
+	private static LocalDate dayOf(LocalDateTime dateTime) {
+		return dateTime == null ? null : dateTime.toLocalDate();
 	}
 
 	static Bill toBill(PluggyBill bill) {

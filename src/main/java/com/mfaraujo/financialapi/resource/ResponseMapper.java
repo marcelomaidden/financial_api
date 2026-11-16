@@ -5,17 +5,21 @@ import java.util.function.Function;
 
 import com.mfaraujo.financialapi.domain.model.Account;
 import com.mfaraujo.financialapi.domain.model.Bill;
+import com.mfaraujo.financialapi.domain.model.Loan;
 import com.mfaraujo.financialapi.domain.model.Transaction;
 import com.mfaraujo.financialapi.domain.result.BillPage;
 import com.mfaraujo.financialapi.domain.result.OwnerAccountsResult;
 import com.mfaraujo.financialapi.domain.result.OwnerCreditCardsResult;
+import com.mfaraujo.financialapi.domain.result.OwnerLoansResult;
 import com.mfaraujo.financialapi.domain.result.TransactionPage;
 import com.mfaraujo.financialapi.resource.dto.AccountResponse;
 import com.mfaraujo.financialapi.resource.dto.BillResponse;
 import com.mfaraujo.financialapi.resource.dto.BillsResponse;
 import com.mfaraujo.financialapi.resource.dto.CreditCardResponse;
+import com.mfaraujo.financialapi.resource.dto.LoanResponse;
 import com.mfaraujo.financialapi.resource.dto.OwnerAccounts;
 import com.mfaraujo.financialapi.resource.dto.OwnerCreditCards;
+import com.mfaraujo.financialapi.resource.dto.OwnerLoans;
 import com.mfaraujo.financialapi.resource.dto.OwnersResponse;
 import com.mfaraujo.financialapi.resource.dto.TransactionResponse;
 import com.mfaraujo.financialapi.resource.dto.TransactionsResponse;
@@ -34,6 +38,10 @@ final class ResponseMapper {
 		return map(result, ResponseMapper::toOwnerCreditCards);
 	}
 
+	static OwnersResponse<OwnerLoans> toLoans(OwnersResponse<OwnerLoansResult> result) {
+		return map(result, ResponseMapper::toOwnerLoans);
+	}
+
 	static TransactionsResponse toTransactions(String owner, String accountId, TransactionPage page) {
 		return new TransactionsResponse(owner, accountId,
 				page.transactions().stream().map(ResponseMapper::toTransaction).toList(), page.nextCursor());
@@ -42,6 +50,25 @@ final class ResponseMapper {
 	static BillsResponse toBills(String owner, String accountId, BillPage page) {
 		return new BillsResponse(owner, accountId, page.bills().stream().map(ResponseMapper::toBill).toList(),
 				page.page(), page.totalPages());
+	}
+
+	static OwnerLoans toOwnerLoans(OwnerLoansResult result) {
+		return new OwnerLoans(result.owner(), result.loans().stream().map(ResponseMapper::toLoan).toList(),
+				result.error());
+	}
+
+	static LoanResponse toLoan(Loan loan) {
+		Loan.Installments installments = loan.installments();
+		Loan.Payment lastPayment = loan.lastPayment();
+		return new LoanResponse(loan.id(), loan.itemId(), loan.contractNumber(), loan.productName(),
+				loan.kind().getType(), loan.type(), loan.contractAmount(), loan.currencyCode(), loan.contractDate(),
+				loan.dueDate(),
+				installments == null ? null
+						: new LoanResponse.Installments(installments.total(), installments.paid(),
+								installments.remaining(), installments.pastDue()),
+				loan.outstandingBalance(),
+				lastPayment == null ? null
+						: new LoanResponse.LastPayment(lastPayment.paidDate(), lastPayment.paidAmount()));
 	}
 
 	static OwnerAccounts toOwnerAccounts(OwnerAccountsResult result) {
