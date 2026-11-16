@@ -7,20 +7,26 @@ import com.mfaraujo.financialapi.domain.model.Account;
 import com.mfaraujo.financialapi.domain.model.Bill;
 import com.mfaraujo.financialapi.domain.model.Loan;
 import com.mfaraujo.financialapi.domain.model.Transaction;
+import com.mfaraujo.financialapi.domain.result.AccountFailure;
 import com.mfaraujo.financialapi.domain.result.BillPage;
+import com.mfaraujo.financialapi.domain.result.OwnedTransaction;
 import com.mfaraujo.financialapi.domain.result.OwnerAccountsResult;
 import com.mfaraujo.financialapi.domain.result.OwnerCreditCardsResult;
 import com.mfaraujo.financialapi.domain.result.OwnerLoansResult;
+import com.mfaraujo.financialapi.domain.result.TransactionListResult;
 import com.mfaraujo.financialapi.domain.result.TransactionPage;
 import com.mfaraujo.financialapi.resource.dto.AccountResponse;
 import com.mfaraujo.financialapi.resource.dto.BillResponse;
 import com.mfaraujo.financialapi.resource.dto.BillsResponse;
+import com.mfaraujo.financialapi.resource.dto.ConsolidatedTransaction;
+import com.mfaraujo.financialapi.resource.dto.ConsolidatedTransactionsResponse;
 import com.mfaraujo.financialapi.resource.dto.CreditCardResponse;
 import com.mfaraujo.financialapi.resource.dto.LoanResponse;
 import com.mfaraujo.financialapi.resource.dto.OwnerAccounts;
 import com.mfaraujo.financialapi.resource.dto.OwnerCreditCards;
 import com.mfaraujo.financialapi.resource.dto.OwnerLoans;
 import com.mfaraujo.financialapi.resource.dto.OwnersResponse;
+import com.mfaraujo.financialapi.resource.dto.TransactionError;
 import com.mfaraujo.financialapi.resource.dto.TransactionResponse;
 import com.mfaraujo.financialapi.resource.dto.TransactionsResponse;
 
@@ -40,6 +46,24 @@ final class ResponseMapper {
 
 	static OwnersResponse<OwnerLoans> toLoans(OwnersResponse<OwnerLoansResult> result) {
 		return map(result, ResponseMapper::toOwnerLoans);
+	}
+
+	static ConsolidatedTransactionsResponse toConsolidatedTransactions(TransactionListResult result) {
+		List<TransactionError> errors = result.failures().stream().map(ResponseMapper::toTransactionError).toList();
+		return new ConsolidatedTransactionsResponse(
+				result.transactions().stream().map(ResponseMapper::toConsolidatedTransaction).toList(),
+				!errors.isEmpty(), errors);
+	}
+
+	static ConsolidatedTransaction toConsolidatedTransaction(OwnedTransaction owned) {
+		Transaction tx = owned.transaction();
+		return new ConsolidatedTransaction(owned.owner(), owned.accountId(), tx.id(), tx.date(), tx.description(),
+				tx.amount(), tx.currencyCode(), tx.type().getType(), tx.status(), tx.category());
+	}
+
+	static TransactionError toTransactionError(AccountFailure failure) {
+		return new TransactionError(failure.owner(), failure.accountId(), failure.error().status(),
+				failure.error().message());
 	}
 
 	static TransactionsResponse toTransactions(String owner, String accountId, TransactionPage page) {

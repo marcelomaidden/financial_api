@@ -3,6 +3,7 @@ package com.mfaraujo.financialapi.resource;
 import java.time.LocalDate;
 
 import com.mfaraujo.financialapi.resource.dto.BillsResponse;
+import com.mfaraujo.financialapi.resource.dto.ConsolidatedTransactionsResponse;
 import com.mfaraujo.financialapi.resource.dto.OwnerAccounts;
 import com.mfaraujo.financialapi.resource.dto.OwnerCreditCards;
 import com.mfaraujo.financialapi.resource.dto.OwnerLoans;
@@ -13,6 +14,7 @@ import com.mfaraujo.financialapi.service.AccountService;
 import com.mfaraujo.financialapi.service.BillService;
 import com.mfaraujo.financialapi.service.LoanService;
 import com.mfaraujo.financialapi.service.SummaryService;
+import com.mfaraujo.financialapi.service.TransactionListService;
 import com.mfaraujo.financialapi.service.TransactionService;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -36,13 +38,17 @@ public class FinancialDataController {
 
 	private final LoanService loanService;
 
+	private final TransactionListService transactionListService;
+
 	public FinancialDataController(AccountService accountService, TransactionService transactionService,
-			BillService billService, SummaryService summaryService, LoanService loanService) {
+			BillService billService, SummaryService summaryService, LoanService loanService,
+			TransactionListService transactionListService) {
 		this.accountService = accountService;
 		this.transactionService = transactionService;
 		this.billService = billService;
 		this.summaryService = summaryService;
 		this.loanService = loanService;
+		this.transactionListService = transactionListService;
 	}
 
 	@GetMapping("/summary")
@@ -56,6 +62,20 @@ public class FinancialDataController {
 	@GetMapping("/accounts")
 	public OwnersResponse<OwnerAccounts> accounts(@RequestParam(required = false) String owner) {
 		return ResponseMapper.toAccounts(accountService.getAccounts(owner));
+	}
+
+	/**
+	 * Transações de todos os donos e contas, ou só do {@code owner} e da {@code accountId}
+	 * informados. Período em {@code dateFrom}/{@code dateTo} ({@code yyyy-mm-dd}); sem datas,
+	 * o mês corrente. {@code accountId} exige {@code owner}.
+	 */
+	@GetMapping("/transactions")
+	public ConsolidatedTransactionsResponse allTransactions(@RequestParam(required = false) String owner,
+			@RequestParam(required = false) String accountId,
+			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
+		return ResponseMapper.toConsolidatedTransactions(
+				transactionListService.list(owner, accountId, dateFrom, dateTo));
 	}
 
 	@GetMapping("/loans")

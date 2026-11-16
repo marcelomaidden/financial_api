@@ -27,8 +27,11 @@ public final class ApiErrors {
 		if (ex instanceof ResourceAccessException) {
 			return of(HttpStatus.GATEWAY_TIMEOUT, "A Pluggy está indisponível ou não respondeu a tempo");
 		}
-		if (ex instanceof AllOwnersFailedException) {
+		if (ex instanceof AllOwnersFailedException || ex instanceof AllAccountsFailedException) {
 			return of(HttpStatus.BAD_GATEWAY, ex.getMessage());
+		}
+		if (ex instanceof InvalidRequestException) {
+			return of(HttpStatus.BAD_REQUEST, ex.getMessage());
 		}
 		return of(HttpStatus.INTERNAL_SERVER_ERROR, "Erro interno");
 	}
