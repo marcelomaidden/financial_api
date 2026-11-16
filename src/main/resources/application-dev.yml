@@ -12,5 +12,4 @@ pluggy:
     - name: luana
       client-id: ${PLUGGY_LUANA_CLIENT_ID:teste}
       client-secret: ${PLUGGY_LUANA_CLIENT_SECRET:teste}
-      item-ids:
-        - SUBSTITUA-PELO-ITEM-ID-DA-LUANA
+      item-ids: ${PLUGGY_LUANA_ITEM_IDS:}

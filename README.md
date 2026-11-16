@@ -92,6 +92,7 @@ executá-la.
 |---|---|
 | `GET /accounts?owner=` | Contas por dono. Sem `owner`, traz todos os donos |
 | `GET /credit-cards?owner=` | Cartões de crédito por dono |
+| `GET /transactions?owner=&accountId=&dateFrom=&dateTo=` | Transações de todos os donos e contas em uma lista só, ou só do `owner` e da `accountId` informados. Datas em `yyyy-mm-dd`. Sem datas, o mês corrente. `accountId` exige `owner` |
 | `GET /loans?owner=` | Empréstimos e financiamentos por dono. Sem `owner`, traz todos os donos |
 | `GET /owners/{owner}/accounts/{accountId}/transactions?dateFrom=&dateTo=&after=` | Transações de uma conta. Datas em `yyyy-mm-dd`. Para a próxima página, envie `after` com o `nextCursor` da resposta anterior |
 | `GET /owners/{owner}/accounts/{accountId}/bills?page=&pageSize=` | Faturas de uma conta de cartão (`pageSize` até 500) |
@@ -175,6 +176,45 @@ donos, a resposta é 502.
   "errors": [ { "owner": "luana", "status": 502, "message": "Erro ao consultar a Pluggy" } ]
 }
 ```
+
+## Transações (`GET /transactions`)
+
+Traz as transações em uma lista só, sem precisar chamar `/accounts` nem paginar. Sem
+`owner`, consulta todos os donos, e sem `accountId`, todas as contas do dono
+(bancárias e de cartão), percorrendo todas as páginas. `accountId` exige `owner`,
+porque o id de uma conta só vale para o dono que o devolveu, e sem ele a resposta é
+400.
+
+`dateTo` é opcional e assume hoje. `dateFrom` é opcional e assume o dia 1 do mês de
+`dateTo`. Sem nenhuma data, vale o mês corrente.
+
+A lista segue a ordem da Pluggy, da data mais recente para a mais antiga. No empate
+de data, ordena por `owner` e por `accountId`. A resposta pode ser grande em
+períodos longos, porque não há paginação.
+
+Se a consulta de uma conta falhar, a resposta é 200, `partial` é `true` e a falha vai
+em `errors`, com o `owner` e o `accountId`. Se a listagem das contas de um dono
+falhar, a falha vai em `errors` só com o `owner`. A resposta é 502 se nenhuma
+consulta tiver sucesso. Com `accountId` informado, ou com `owner` e a listagem das
+contas dele falhando, vale o erro normal (404 ou 502).
+
+```json
+{
+  "transactions": [
+    { "owner": "marcelo", "accountId": "...", "id": "...", "date": "2026-11-10T00:00:00Z",
+      "description": "PIX Recebido", "amount": 19.99, "currencyCode": "BRL",
+      "type": "CREDIT", "status": "POSTED", "category": "Transfer" }
+  ],
+  "partial": true,
+  "errors": [
+    { "owner": "marcelo", "accountId": "...", "status": 502, "message": "Erro ao consultar a Pluggy" },
+    { "owner": "luana", "accountId": null, "status": 429, "message": "Limite de requisições da Pluggy atingido" }
+  ]
+}
+```
+
+A rota `/owners/{owner}/accounts/{accountId}/transactions` continua existindo, com a
+paginação por `after`.
 
 ## Empréstimos (`GET /loans`)
 

@@ -15,21 +15,27 @@ import com.mfaraujo.financialapi.domain.model.Bill;
 import com.mfaraujo.financialapi.domain.model.Loan;
 import com.mfaraujo.financialapi.domain.model.Transaction;
 import com.mfaraujo.financialapi.domain.enums.TransactionTypesEnum;
+import com.mfaraujo.financialapi.domain.result.AccountFailure;
 import com.mfaraujo.financialapi.domain.result.BillPage;
+import com.mfaraujo.financialapi.domain.result.OwnedTransaction;
 import com.mfaraujo.financialapi.domain.result.OwnerAccountsResult;
 import com.mfaraujo.financialapi.domain.result.OwnerCreditCardsResult;
 import com.mfaraujo.financialapi.domain.result.OwnerLoansResult;
+import com.mfaraujo.financialapi.domain.result.TransactionListResult;
 import com.mfaraujo.financialapi.domain.result.TransactionPage;
 import com.mfaraujo.financialapi.resource.dto.AccountResponse;
 import com.mfaraujo.financialapi.resource.dto.ApiError;
 import com.mfaraujo.financialapi.resource.dto.BillResponse;
 import com.mfaraujo.financialapi.resource.dto.BillsResponse;
+import com.mfaraujo.financialapi.resource.dto.ConsolidatedTransaction;
+import com.mfaraujo.financialapi.resource.dto.ConsolidatedTransactionsResponse;
 import com.mfaraujo.financialapi.resource.dto.CreditCardResponse;
 import com.mfaraujo.financialapi.resource.dto.LoanResponse;
 import com.mfaraujo.financialapi.resource.dto.OwnerAccounts;
 import com.mfaraujo.financialapi.resource.dto.OwnerCreditCards;
 import com.mfaraujo.financialapi.resource.dto.OwnerLoans;
 import com.mfaraujo.financialapi.resource.dto.OwnersResponse;
+import com.mfaraujo.financialapi.resource.dto.TransactionError;
 import com.mfaraujo.financialapi.resource.dto.TransactionResponse;
 import com.mfaraujo.financialapi.resource.dto.TransactionsResponse;
 import org.junit.jupiter.api.Test;
@@ -168,6 +174,45 @@ class ResponseMapperTest {
 		assertThat(loans.owners().get(0).error()).isNull();
 		assertThat(loans.owners().get(1).loans()).isEmpty();
 		assertThat(loans.owners().get(1).error()).isEqualTo(error);
+	}
+
+	@Test
+	void mapsTheConsolidatedTransactionsWithOwnerAndAccount() {
+		Transaction tx = new Transaction("t1", DATE, "PIX", new BigDecimal("19.99"), "BRL", TransactionTypesEnum.CREDIT,
+				"POSTED", "Transfer", null, null, null);
+
+		ConsolidatedTransactionsResponse response = ResponseMapper.toConsolidatedTransactions(
+				new TransactionListResult(List.of(new OwnedTransaction("marcelo", "a1", tx)), List.of()));
+
+		assertThat(response.partial()).isFalse();
+		assertThat(response.errors()).isEmpty();
+		assertThat(response.transactions()).containsExactly(new ConsolidatedTransaction("marcelo", "a1", "t1", DATE,
+				"PIX", new BigDecimal("19.99"), "BRL", "CREDIT", "POSTED", "Transfer"));
+	}
+
+	@Test
+	void mapsFailuresToErrorsAndMarksTheResponseAsPartial() {
+		ApiError accountError = new ApiError(429, "Too Many Requests", "Limite de requisições da Pluggy atingido");
+		ApiError ownerError = new ApiError(502, "Bad Gateway", "Erro ao consultar a Pluggy");
+
+		ConsolidatedTransactionsResponse response = ResponseMapper.toConsolidatedTransactions(new TransactionListResult(
+				List.of(), List.of(new AccountFailure("marcelo", "a1", accountError),
+						new AccountFailure("luana", null, ownerError))));
+
+		assertThat(response.partial()).isTrue();
+		assertThat(response.errors()).containsExactly(
+				new TransactionError("marcelo", "a1", 429, "Limite de requisições da Pluggy atingido"),
+				new TransactionError("luana", null, 502, "Erro ao consultar a Pluggy"));
+	}
+
+	@Test
+	void unknownTransactionTypeIsExposedAsUnknownInTheConsolidatedList() {
+		Transaction tx = new Transaction("t", DATE, "x", BigDecimal.ONE, "BRL", TransactionTypesEnum.UNKNOWN, null,
+				null, null, null, null);
+
+		ConsolidatedTransaction mapped = ResponseMapper.toConsolidatedTransaction(new OwnedTransaction("m", "a", tx));
+
+		assertThat(mapped.type()).isEqualTo("UNKNOWN");
 	}
 
 }
