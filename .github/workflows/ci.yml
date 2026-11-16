@@ -1,0 +1,75 @@
+name: CI
+
+# Compila, roda os testes e valida os specs do OpenSpec em cada pull request e
+# a cada push na master. Não usa segredos: os testes não dependem de MySQL nem
+# da Pluggy.
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+permissions:
+  contents: read
+
+# Em pull request, uma execução nova cancela a anterior da mesma branch. Na
+# master nunca cancela.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      # O projeto declara o Java 21. Com ele instalado, o toolchain não baixa JDK.
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # Valida o gradle wrapper e guarda o cache. O provedor "basic" é de código
+      # aberto e gratuito em qualquer repositório.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+
+      - name: Build and test
+        run: ./gradlew build
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-reports
+          path: |
+            build/reports/tests
+            build/test-results
+          retention-days: 7
+
+  # Valida os specs e as changes do OpenSpec. A versão da CLI é a mesma usada no
+  # desenvolvimento: sem fixá-la, uma atualização do formato quebraria o CI sem
+  # nenhuma mudança no repositório. Os avisos não falham o job (sem --strict).
+  openspec:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Install OpenSpec CLI
+        run: npm install -g @fission-ai/openspec@1.16.0
+
+      - name: Verify OpenSpec CLI
+        run: openspec --version
+
+      - name: Validate specs and changes
+        run: openspec validate --all

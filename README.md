@@ -65,6 +65,27 @@ Se a rede inspeciona TLS (proxy corporativo) e o Gradle falhar com
 `PKIX path building failed`, aponte a JVM para um truststore que tenha a CA do
 proxy, por exemplo `./gradlew bootRun -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts -Djavax.net.ssl.trustStorePassword=changeit`.
 
+## Verificações
+
+O GitHub Actions (`.github/workflows/ci.yml`) roda em cada pull request e a cada
+push na `master`:
+
+| Job | O que roda |
+|---|---|
+| `build` | `./gradlew build`: compila, roda os testes e gera o jar. Não precisa de MySQL nem de credenciais da Pluggy |
+| `openspec` | `openspec validate --all`, com a CLI do OpenSpec na versão 1.16.0 |
+
+Para rodar os mesmos comandos localmente:
+
+```sh
+./gradlew build
+npm install -g @fission-ai/openspec@1.16.0   # uma vez
+openspec validate --all
+```
+
+O CI não sobe a aplicação, então um erro de montagem de beans só aparece ao
+executá-la.
+
 ## Endpoints
 
 | Método e rota | Descrição |
