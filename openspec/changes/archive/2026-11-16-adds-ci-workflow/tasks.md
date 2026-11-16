@@ -11,4 +11,4 @@
 
 ## 3. Verificação no GitHub
 
-- [ ] 3.1 Enviar uma branch com o workflow e abrir um pull request. Verificar que os jobs `build` e `openspec` aparecem nas verificações do pull request e terminam verdes. Exige o push, que é feito por você
+- [x] 3.1 Enviar uma branch com o workflow e abrir um pull request. Verificar que os jobs `build` e `openspec` aparecem nas verificações do pull request e terminam verdes. Exige o push, que é feito por você
