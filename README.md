@@ -19,8 +19,10 @@ Stack: Java 21, Spring Boot 4, Gradle, MySQL 8.4 (Docker Compose), Flyway.
 | `PLUGGY_LUANA_CLIENT_ID` / `PLUGGY_LUANA_CLIENT_SECRET` | Credenciais Pluggy da Luana |
 | `MYSQL_PASSWORD` / `MYSQL_ROOT_PASSWORD` | Senhas do MySQL local (`compose.yaml`). `MYSQL_USER` é opcional (padrão `financial_api`) |
 | `DB_URL` / `DB_USER` / `DB_PASSWORD` | Conexão com o banco, só no perfil `prod` |
+| `APP_API_KEY` | Chave de API exigida no cabeçalho `X-API-Key`. Obrigatória no perfil `prod`; em branco no `dev` desliga a verificação |
+| `APP_CORS_ALLOWED_ORIGINS` | Origens de navegador permitidas, separadas por vírgula. No `dev`, o padrão é `localhost:3000` e `localhost:5173` |
 
-A aplicação não inicia se faltar alguma credencial Pluggy. As senhas do MySQL
+A aplicação não inicia se faltar alguma credencial Pluggy, nem, no perfil `prod`, a `APP_API_KEY`. As senhas do MySQL
 podem ficar num arquivo `.env` nesta pasta (ignorado pelo git). Nunca versione
 credenciais.
 
@@ -85,6 +87,37 @@ openspec validate --all
 
 O CI não sobe a aplicação, então um erro de montagem de beans só aparece ao
 executá-la.
+
+## Acesso à API
+
+Toda rota exige o cabeçalho `X-API-Key` com o valor de `APP_API_KEY`. Sem ele, ou com
+um valor errado, a resposta é 401 no formato de erro padrão (`{"status", "error",
+"message"}`), e a mesma mensagem vale nos dois casos. A requisição `OPTIONS` (o
+preflight do navegador) passa sem a chave.
+
+```sh
+curl -H "X-API-Key: $APP_API_KEY" https://<sua-api>.herokuapp.com/accounts
+```
+
+Gere uma chave longa e aleatória e configure-a no Heroku, junto com a origem do
+front-end:
+
+```sh
+heroku config:set APP_API_KEY=$(openssl rand -hex 32) \
+  APP_CORS_ALLOWED_ORIGINS=https://<seu-front>.herokuapp.com -a <sua-api>
+```
+
+O front-end também precisa enviar o cabeçalho `X-API-Key`, então a mesma chave entra no
+build dele. Trocar a chave é trocar o valor nos dois lugares.
+
+`APP_CORS_ALLOWED_ORIGINS` aceita várias origens separadas por vírgula, cada uma com
+esquema e sem caminho (`https://front.exemplo.com`, e `:porta` quando não for a padrão).
+Uma requisição de navegador de outra origem recebe 403. Chamadas sem o cabeçalho
+`Origin`, como as do Postman e do `curl`, não passam pelo CORS e dependem só da chave.
+
+A chave no JavaScript de um SPA público não esconde os dados: quem abrir o front vê o
+que ele mostra, e a chave aparece no código dele. Ela barra quem chama a API direto, mas
+não substitui uma senha no próprio front-end.
 
 ## Endpoints
 
@@ -259,6 +292,8 @@ Erros seguem o formato `{"status", "error", "message"}`:
 | Situação | Status |
 |---|---|
 | Parâmetro inválido | 400 |
+| Chave de API ausente ou inválida | 401 |
+| Origem de navegador não permitida | 403 |
 | Dono não configurado, ou conta não encontrada na Pluggy | 404 |
 | Limite de requisições da Pluggy | 429 |
 | Credenciais rejeitadas ou outro erro da Pluggy | 502 |
