@@ -13,10 +13,8 @@ pluggy:
     - name: marcelo
       client-id: ${PLUGGY_MARCELO_CLIENT_ID:}
       client-secret: ${PLUGGY_MARCELO_CLIENT_SECRET:}
-      item-ids:
-        - SUBSTITUA-PELO-ITEM-ID-DO-MARCELO
+      item-ids: ${PLUGGY_MARCELO_ITEM_IDS:}
     - name: luana
       client-id: ${PLUGGY_LUANA_CLIENT_ID:}
       client-secret: ${PLUGGY_LUANA_CLIENT_SECRET:}
-      item-ids:
-        - SUBSTITUA-PELO-ITEM-ID-DA-LUANA
+      item-ids: ${PLUGGY_LUANA_ITEM_IDS:}
