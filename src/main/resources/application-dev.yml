@@ -3,6 +3,12 @@
 # (@NotBlank) em vez de passar como o texto literal do placeholder.
 # O banco é o MySQL do compose.yaml: o suporte a Docker Compose do Spring Boot
 # sobe o contêiner e preenche a conexão automaticamente.
+# Chave opcional em desenvolvimento. O front local (localhost) é permitido por CORS.
+app:
+  access:
+    cors:
+      allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
+
 pluggy:
   owners:
     - name: marcelo
