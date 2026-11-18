@@ -5,9 +5,11 @@ import java.util.function.Function;
 
 import com.mfaraujo.financialapi.domain.model.Account;
 import com.mfaraujo.financialapi.domain.model.Bill;
+import com.mfaraujo.financialapi.domain.model.BillDetail;
 import com.mfaraujo.financialapi.domain.model.Loan;
 import com.mfaraujo.financialapi.domain.model.Transaction;
 import com.mfaraujo.financialapi.domain.result.AccountFailure;
+import com.mfaraujo.financialapi.domain.result.BillDetailResult;
 import com.mfaraujo.financialapi.domain.result.BillPage;
 import com.mfaraujo.financialapi.domain.result.OwnedTransaction;
 import com.mfaraujo.financialapi.domain.result.OwnerAccountsResult;
@@ -16,11 +18,13 @@ import com.mfaraujo.financialapi.domain.result.OwnerLoansResult;
 import com.mfaraujo.financialapi.domain.result.TransactionListResult;
 import com.mfaraujo.financialapi.domain.result.TransactionPage;
 import com.mfaraujo.financialapi.resource.dto.AccountResponse;
+import com.mfaraujo.financialapi.resource.dto.BillDetailResponse;
 import com.mfaraujo.financialapi.resource.dto.BillResponse;
 import com.mfaraujo.financialapi.resource.dto.BillsResponse;
 import com.mfaraujo.financialapi.resource.dto.ConsolidatedTransaction;
 import com.mfaraujo.financialapi.resource.dto.ConsolidatedTransactionsResponse;
 import com.mfaraujo.financialapi.resource.dto.CreditCardResponse;
+import com.mfaraujo.financialapi.resource.dto.Installment;
 import com.mfaraujo.financialapi.resource.dto.LoanResponse;
 import com.mfaraujo.financialapi.resource.dto.OwnerAccounts;
 import com.mfaraujo.financialapi.resource.dto.OwnerCreditCards;
@@ -74,6 +78,32 @@ final class ResponseMapper {
 	static BillsResponse toBills(String owner, String accountId, BillPage page) {
 		return new BillsResponse(owner, accountId, page.bills().stream().map(ResponseMapper::toBill).toList(),
 				page.page(), page.totalPages());
+	}
+
+	static BillDetailResponse toBillDetail(String owner, String accountId, BillDetailResult result) {
+		BillDetail bill = result.bill();
+		BillDetailResponse.BillSummary summary = new BillDetailResponse.BillSummary(bill.id(), bill.dueDate(),
+				bill.closingDate(), bill.totalAmount(), bill.currencyCode(), bill.minimumPaymentAmount(),
+				bill.allowsInstallments(),
+				bill.financeCharges().stream()
+						.map(charge -> new BillDetailResponse.FinanceChargeResponse(charge.id(), charge.type(),
+								charge.amount(), charge.currencyCode(), charge.additionalInfo()))
+						.toList(),
+				bill.payments().stream()
+						.map(payment -> new BillDetailResponse.PaymentResponse(payment.id(), payment.valueType(),
+								payment.paymentDate(), payment.paymentMode(), payment.amount(),
+								payment.currencyCode()))
+						.toList());
+		return new BillDetailResponse(owner, accountId, summary,
+				result.transactions().stream().map(ResponseMapper::toBillTransaction).toList());
+	}
+
+	/** A data da compra vira o dia lido, sem conversão de fuso. */
+	static BillDetailResponse.BillTransaction toBillTransaction(Transaction tx) {
+		Transaction.Installment installment = tx.installment();
+		return new BillDetailResponse.BillTransaction(tx.id(), tx.date() == null ? null : tx.date().toLocalDate(),
+				tx.description(), tx.amount(), tx.currencyCode(), tx.category(), tx.type().getType(), tx.status(),
+				installment == null ? null : new Installment(installment.number(), installment.total()));
 	}
 
 	static OwnerLoans toOwnerLoans(OwnerLoansResult result) {

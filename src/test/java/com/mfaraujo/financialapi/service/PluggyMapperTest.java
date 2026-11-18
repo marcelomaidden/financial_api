@@ -10,12 +10,14 @@ import java.util.List;
 
 import com.mfaraujo.financialapi.client.dto.PluggyAccount;
 import com.mfaraujo.financialapi.client.dto.PluggyBill;
+import com.mfaraujo.financialapi.client.dto.PluggyBillDetail;
 import com.mfaraujo.financialapi.client.dto.PluggyLoan;
 import com.mfaraujo.financialapi.client.dto.PluggyTransaction;
 import com.mfaraujo.financialapi.domain.model.Account;
 import com.mfaraujo.financialapi.domain.enums.AccountTypesEnum;
 import com.mfaraujo.financialapi.domain.enums.LoanKindEnum;
 import com.mfaraujo.financialapi.domain.model.Bill;
+import com.mfaraujo.financialapi.domain.model.BillDetail;
 import com.mfaraujo.financialapi.domain.model.Loan;
 import com.mfaraujo.financialapi.domain.model.Transaction;
 import com.mfaraujo.financialapi.domain.enums.TransactionTypesEnum;
@@ -234,6 +236,76 @@ class PluggyMapperTest {
 
 		assertThat(PluggyMapper.toBill(source)).isEqualTo(
 				new Bill("b1", due, closing, new BigDecimal("300"), "BRL", new BigDecimal("30")));
+	}
+
+	private static PluggyBillDetail detail(LocalDateTime closing, BigDecimal minimum, Boolean allowsInstallments,
+			List<PluggyBillDetail.FinanceCharge> charges, List<PluggyBillDetail.Payment> payments) {
+		return new PluggyBillDetail("b1", LocalDateTime.of(2026, 11, 20, 0, 0), closing, new BigDecimal("1500"),
+				"BRL", minimum, allowsInstallments, charges, payments);
+	}
+
+	@Test
+	void mapsACompleteBillDetail() {
+		PluggyBillDetail source = detail(LocalDateTime.of(2026, 11, 10, 0, 0), new BigDecimal("225"), true,
+				List.of(new PluggyBillDetail.FinanceCharge("fc1", "IOF", new BigDecimal("12.5"), "BRL", "info")),
+				List.of(new PluggyBillDetail.Payment("p1", "TOTAL", LocalDateTime.of(2026, 11, 18, 0, 0), "PIX",
+						new BigDecimal("300"), "BRL")));
+
+		BillDetail bill = PluggyMapper.toBillDetail(source);
+
+		assertThat(bill.id()).isEqualTo("b1");
+		assertThat(bill.dueDate()).isEqualTo(LocalDate.of(2026, 11, 20));
+		assertThat(bill.closingDate()).isEqualTo(LocalDate.of(2026, 11, 10));
+		assertThat(bill.totalAmount()).isEqualByComparingTo("1500");
+		assertThat(bill.currencyCode()).isEqualTo("BRL");
+		assertThat(bill.minimumPaymentAmount()).isEqualByComparingTo("225");
+		assertThat(bill.allowsInstallments()).isTrue();
+		assertThat(bill.financeCharges()).containsExactly(
+				new BillDetail.FinanceCharge("fc1", "IOF", new BigDecimal("12.5"), "BRL", "info"));
+		assertThat(bill.payments()).containsExactly(new BillDetail.Payment("p1", "TOTAL", LocalDate.of(2026, 11, 18),
+				"PIX", new BigDecimal("300"), "BRL"));
+	}
+
+	@Test
+	void mapsABillDetailWithoutClosingMinimumAndInstallmentsFlag() {
+		BillDetail bill = PluggyMapper.toBillDetail(detail(null, null, null, List.of(), List.of()));
+
+		assertThat(bill.closingDate()).isNull();
+		assertThat(bill.minimumPaymentAmount()).isNull();
+		assertThat(bill.allowsInstallments()).isNull();
+	}
+
+	@Test
+	void mapsChargesAndPaymentsWithMissingOptionalFields() {
+		BillDetail bill = PluggyMapper.toBillDetail(detail(null, null, null,
+				List.of(new PluggyBillDetail.FinanceCharge("fc1", "JUROS", new BigDecimal("3"), "BRL", null)),
+				List.of(new PluggyBillDetail.Payment("p1", "PARTIAL", null, null, new BigDecimal("50"), "BRL"))));
+
+		assertThat(bill.financeCharges().get(0).additionalInfo()).isNull();
+		assertThat(bill.payments().get(0).paymentDate()).isNull();
+		assertThat(bill.payments().get(0).paymentMode()).isNull();
+	}
+
+	@Test
+	void mapsNullChargesAndPaymentsToEmptyLists() {
+		BillDetail bill = PluggyMapper.toBillDetail(detail(null, null, null, null, null));
+
+		assertThat(bill.financeCharges()).isEmpty();
+		assertThat(bill.payments()).isEmpty();
+	}
+
+	@Test
+	void keepsTheDayOfDatesThatCarryATimeInBillDetail() {
+		PluggyBillDetail source = new PluggyBillDetail("b1", LocalDateTime.of(2026, 11, 20, 23, 59),
+				LocalDateTime.of(2026, 11, 10, 0, 0, 1), BigDecimal.ONE, "BRL", null, null, List.of(),
+				List.of(new PluggyBillDetail.Payment("p1", "TOTAL", LocalDateTime.of(2026, 11, 18, 23, 30), null,
+						BigDecimal.ONE, "BRL")));
+
+		BillDetail bill = PluggyMapper.toBillDetail(source);
+
+		assertThat(bill.dueDate()).isEqualTo(LocalDate.of(2026, 11, 20));
+		assertThat(bill.closingDate()).isEqualTo(LocalDate.of(2026, 11, 10));
+		assertThat(bill.payments().get(0).paymentDate()).isEqualTo(LocalDate.of(2026, 11, 18));
 	}
 
 }

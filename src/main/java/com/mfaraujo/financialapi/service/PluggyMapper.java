@@ -7,12 +7,14 @@ import java.util.Comparator;
 import java.util.List;
 
 import com.mfaraujo.financialapi.client.dto.PluggyBill;
+import com.mfaraujo.financialapi.client.dto.PluggyBillDetail;
 import com.mfaraujo.financialapi.client.dto.PluggyLoan;
 import com.mfaraujo.financialapi.client.dto.PluggyTransaction;
 import com.mfaraujo.financialapi.domain.model.Account;
 import com.mfaraujo.financialapi.domain.enums.AccountTypesEnum;
 import com.mfaraujo.financialapi.domain.enums.LoanKindEnum;
 import com.mfaraujo.financialapi.domain.model.Bill;
+import com.mfaraujo.financialapi.domain.model.BillDetail;
 import com.mfaraujo.financialapi.domain.model.Loan;
 import com.mfaraujo.financialapi.domain.model.Transaction;
 import com.mfaraujo.financialapi.domain.enums.TransactionTypesEnum;
@@ -78,6 +80,20 @@ final class PluggyMapper {
 	static Bill toBill(PluggyBill bill) {
 		return new Bill(bill.id(), bill.dueDate(), bill.billClosingDate(), bill.totalAmount(),
 				bill.totalAmountCurrencyCode(), bill.minimumPaymentAmount());
+	}
+
+	static BillDetail toBillDetail(PluggyBillDetail bill) {
+		return new BillDetail(bill.id(), dayOf(bill.dueDate()), dayOf(bill.billClosingDate()), bill.totalAmount(),
+				bill.totalAmountCurrencyCode(), bill.minimumPaymentAmount(), bill.allowsInstallments(),
+				bill.financeChargesOrEmpty().stream()
+						.map(charge -> new BillDetail.FinanceCharge(charge.id(), charge.type(), charge.amount(),
+								charge.currencyCode(), charge.additionalInfo()))
+						.toList(),
+				bill.paymentsOrEmpty().stream()
+						.map(payment -> new BillDetail.Payment(payment.id(), payment.valueType(),
+								dayOf(payment.paymentDate()), payment.paymentMode(), payment.amount(),
+								payment.currencyCode()))
+						.toList());
 	}
 
 }

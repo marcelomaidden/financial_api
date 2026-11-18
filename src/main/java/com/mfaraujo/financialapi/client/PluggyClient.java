@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 
 import com.mfaraujo.financialapi.client.dto.PluggyAccount;
 import com.mfaraujo.financialapi.client.dto.PluggyBill;
+import com.mfaraujo.financialapi.client.dto.PluggyBillDetail;
 import com.mfaraujo.financialapi.client.dto.PluggyCursorPage;
 import com.mfaraujo.financialapi.client.dto.PluggyErrorResponse;
 import com.mfaraujo.financialapi.client.dto.PluggyLoan;
@@ -71,6 +72,15 @@ public class PluggyClient {
 
 	public PluggyPage<PluggyBill> listBills(String owner, String accountId, Integer page, Integer pageSize) {
 		return api(owner).listBills(accountId, page, pageSize);
+	}
+
+	public PluggyBillDetail retrieveBill(String owner, String id) {
+		return api(owner).retrieveBill(id);
+	}
+
+	public PluggyCursorPage<PluggyTransaction> listTransactionsByBill(String owner, String accountId, String billId,
+			String after) {
+		return api(owner).listTransactionsByBill(accountId, billId, after);
 	}
 
 	private PluggyApi api(String owner) {

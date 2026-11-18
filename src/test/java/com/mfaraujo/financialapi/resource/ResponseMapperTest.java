@@ -12,6 +12,10 @@ import com.mfaraujo.financialapi.domain.model.Account;
 import com.mfaraujo.financialapi.domain.enums.AccountTypesEnum;
 import com.mfaraujo.financialapi.domain.enums.LoanKindEnum;
 import com.mfaraujo.financialapi.domain.model.Bill;
+import com.mfaraujo.financialapi.domain.model.BillDetail;
+import com.mfaraujo.financialapi.domain.result.BillDetailResult;
+import com.mfaraujo.financialapi.resource.dto.BillDetailResponse;
+import com.mfaraujo.financialapi.resource.dto.Installment;
 import com.mfaraujo.financialapi.domain.model.Loan;
 import com.mfaraujo.financialapi.domain.model.Transaction;
 import com.mfaraujo.financialapi.domain.enums.TransactionTypesEnum;
@@ -213,6 +217,61 @@ class ResponseMapperTest {
 		ConsolidatedTransaction mapped = ResponseMapper.toConsolidatedTransaction(new OwnedTransaction("m", "a", tx));
 
 		assertThat(mapped.type()).isEqualTo("UNKNOWN");
+	}
+
+	@Test
+	void mapsABillDetailWithItsPurchases() {
+		BillDetail bill = new BillDetail("b1", LocalDate.of(2026, 11, 20), LocalDate.of(2026, 11, 10),
+				new BigDecimal("1500"), "BRL", new BigDecimal("225"), true,
+				List.of(new BillDetail.FinanceCharge("fc1", "IOF", new BigDecimal("12.5"), "BRL", "info")),
+				List.of(new BillDetail.Payment("p1", "TOTAL", LocalDate.of(2026, 11, 18), "PIX", new BigDecimal("300"),
+						"BRL")));
+		Transaction installment = new Transaction("t1", OffsetDateTime.parse("2026-11-10T23:30:00-03:00"), "Loja",
+				new BigDecimal("50"), "BRL", TransactionTypesEnum.DEBIT, "POSTED", "Compras", "b1", null,
+				new Transaction.Installment(3, 10));
+		Transaction single = new Transaction("t2", null, "Café", new BigDecimal("5"), "BRL",
+				TransactionTypesEnum.CREDIT, "POSTED", null, "b1", null, null);
+
+		BillDetailResponse response = ResponseMapper.toBillDetail("marcelo", "c1",
+				new BillDetailResult(bill, List.of(installment, single)));
+
+		assertThat(response.owner()).isEqualTo("marcelo");
+		assertThat(response.accountId()).isEqualTo("c1");
+		assertThat(response.bill().id()).isEqualTo("b1");
+		assertThat(response.bill().dueDate()).isEqualTo(LocalDate.of(2026, 11, 20));
+		assertThat(response.bill().closingDate()).isEqualTo(LocalDate.of(2026, 11, 10));
+		assertThat(response.bill().totalAmount()).isEqualByComparingTo("1500");
+		assertThat(response.bill().minimumPaymentAmount()).isEqualByComparingTo("225");
+		assertThat(response.bill().allowsInstallments()).isTrue();
+		assertThat(response.bill().financeCharges()).containsExactly(
+				new BillDetailResponse.FinanceChargeResponse("fc1", "IOF", new BigDecimal("12.5"), "BRL", "info"));
+		assertThat(response.bill().payments()).containsExactly(new BillDetailResponse.PaymentResponse("p1", "TOTAL",
+				LocalDate.of(2026, 11, 18), "PIX", new BigDecimal("300"), "BRL"));
+		BillDetailResponse.BillTransaction first = response.transactions().get(0);
+		assertThat(first.date()).isEqualTo(LocalDate.of(2026, 11, 10));
+		assertThat(first.type()).isEqualTo("DEBIT");
+		assertThat(first.category()).isEqualTo("Compras");
+		assertThat(first.installment()).isEqualTo(new Installment(3, 10));
+		BillDetailResponse.BillTransaction second = response.transactions().get(1);
+		assertThat(second.date()).isNull();
+		assertThat(second.type()).isEqualTo("CREDIT");
+		assertThat(second.installment()).isNull();
+	}
+
+	@Test
+	void mapsABillDetailWithNullFieldsAndNoLists() {
+		BillDetail bill = new BillDetail("b1", LocalDate.of(2026, 11, 20), null, new BigDecimal("10"), "BRL", null,
+				null, List.of(), List.of());
+
+		BillDetailResponse response = ResponseMapper.toBillDetail("marcelo", "c1",
+				new BillDetailResult(bill, List.of()));
+
+		assertThat(response.bill().closingDate()).isNull();
+		assertThat(response.bill().minimumPaymentAmount()).isNull();
+		assertThat(response.bill().allowsInstallments()).isNull();
+		assertThat(response.bill().financeCharges()).isEmpty();
+		assertThat(response.bill().payments()).isEmpty();
+		assertThat(response.transactions()).isEmpty();
 	}
 
 }
