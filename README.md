@@ -262,7 +262,9 @@ até o fechamento mais 10 dias. Sem fechamento, vai do vencimento menos 1 mês e
 vencimento. Sem as duas datas, a busca é feita sem janela. As datas saem em
 `yyyy-mm-dd`, diferente da listagem de faturas. Os campos que a Pluggy não informa saem `null`,
 e `financeCharges` e `payments` sem dados saem como lista vazia. As compras vêm da mais recente
-para a mais antiga, e `installment` (`number` e `total`) aparece só em compra parcelada.
+para a mais antiga. `installment` (`number` e `total`) aparece só em compra parcelada, e
+`amountInAccountCurrency` (o valor na moeda do cartão, com o mesmo sinal de `amount`) aparece só
+em compra fora de BRL que a Pluggy tenha convertido.
 
 Qualquer falha da Pluggy ao buscar a fatura ou as compras derruba a requisição inteira, sem
 resposta parcial. Fatura inexistente responde 404.
@@ -292,7 +294,10 @@ Limites conhecidos:
       "category": "Compras", "type": "DEBIT", "status": "POSTED",
       "installment": { "number": 3, "total": 10 } },
     { "id": "t2", "date": "2026-11-08", "description": "Café", "amount": 5, "currencyCode": "BRL",
-      "category": null, "type": "DEBIT", "status": "POSTED" }
+      "category": null, "type": "DEBIT", "status": "POSTED" },
+    { "id": "t3", "date": "2026-11-05", "description": "Netflix", "amount": 58, "currencyCode": "USD",
+      "category": "Video streaming", "type": "DEBIT", "status": "POSTED",
+      "amountInAccountCurrency": 298.19 }
   ]
 }
 ```

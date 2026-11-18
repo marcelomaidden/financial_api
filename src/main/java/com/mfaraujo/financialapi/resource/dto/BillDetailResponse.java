@@ -8,8 +8,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * Detalhe de uma fatura de cartão com as compras dela. As datas saem em {@code yyyy-mm-dd}.
- * Os campos que a Pluggy não informa saem nulos, e {@code installment} só aparece em compra
- * parcelada.
+ * Os campos que a Pluggy não informa saem nulos, {@code installment} só aparece em compra
+ * parcelada e {@code amountInAccountCurrency} só aparece em compra fora de BRL.
  */
 public record BillDetailResponse(
 		String owner,
@@ -46,7 +46,8 @@ public record BillDetailResponse(
 			String category,
 			String type,
 			String status,
-			@JsonInclude(JsonInclude.Include.NON_NULL) Installment installment) {
+			@JsonInclude(JsonInclude.Include.NON_NULL) Installment installment,
+			@JsonInclude(JsonInclude.Include.NON_NULL) BigDecimal amountInAccountCurrency) {
 	}
 
 }
