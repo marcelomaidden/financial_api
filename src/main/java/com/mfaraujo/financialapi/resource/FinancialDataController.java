@@ -2,6 +2,7 @@ package com.mfaraujo.financialapi.resource;
 
 import java.time.LocalDate;
 
+import com.mfaraujo.financialapi.resource.dto.BillDetailResponse;
 import com.mfaraujo.financialapi.resource.dto.BillsResponse;
 import com.mfaraujo.financialapi.resource.dto.ConsolidatedTransactionsResponse;
 import com.mfaraujo.financialapi.resource.dto.OwnerAccounts;
@@ -18,6 +19,7 @@ import com.mfaraujo.financialapi.service.TransactionListService;
 import com.mfaraujo.financialapi.service.TransactionService;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -107,6 +109,16 @@ public class FinancialDataController {
 			@RequestParam(required = false) @Min(1) Integer page,
 			@RequestParam(required = false) @Min(1) @Max(500) Integer pageSize) {
 		return ResponseMapper.toBills(owner, accountId, billService.getBills(owner, accountId, page, pageSize));
+	}
+
+	/**
+	 * Detalhe de uma fatura de cartão ({@code id} é o {@code bills[].id} da listagem de
+	 * faturas), com resumo, encargos, pagamentos e as compras da fatura.
+	 */
+	@GetMapping("/bill/{id}")
+	public BillDetailResponse billDetail(@PathVariable String id, @RequestParam @NotBlank String owner,
+			@RequestParam @NotBlank String accountId) {
+		return ResponseMapper.toBillDetail(owner, accountId, billService.getBillDetail(owner, id, accountId));
 	}
 
 }

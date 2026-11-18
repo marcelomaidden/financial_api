@@ -43,6 +43,12 @@ public class TransactionService {
 		return toPage(pluggyClient.listTransactionsCreatedSince(owner, accountId, createdAtFrom, after));
 	}
 
+	/** Uma página das compras de uma fatura de cartão. */
+	TransactionPage getByBill(String owner, String accountId, String billId, String after) {
+		owners.require(owner);
+		return toPage(pluggyClient.listTransactionsByBill(owner, accountId, billId, after));
+	}
+
 	private static TransactionPage toPage(PluggyCursorPage<PluggyTransaction> page) {
 		List<Transaction> transactions = page.resultsOrEmpty().stream().map(PluggyMapper::toTransaction).toList();
 		return new TransactionPage(transactions, cursorFrom(page.next()));
@@ -56,6 +62,11 @@ public class TransactionService {
 	/** Todas as transações que chegaram à Pluggy a partir de {@code createdAtFrom}, em todas as páginas. */
 	public List<Transaction> getAllCreatedSince(String owner, String accountId, Instant createdAtFrom) {
 		return drain(after -> getCreatedSince(owner, accountId, createdAtFrom, after));
+	}
+
+	/** Todas as compras da fatura, em todas as páginas. */
+	public List<Transaction> getAllByBill(String owner, String accountId, String billId) {
+		return drain(after -> getByBill(owner, accountId, billId, after));
 	}
 
 	/** Busca páginas, começando sem cursor, até a última. */

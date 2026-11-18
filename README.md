@@ -129,6 +129,7 @@ não substitui uma senha no próprio front-end.
 | `GET /loans?owner=` | Empréstimos e financiamentos por dono. Sem `owner`, traz todos os donos |
 | `GET /owners/{owner}/accounts/{accountId}/transactions?dateFrom=&dateTo=&after=` | Transações de uma conta. Datas em `yyyy-mm-dd`. Para a próxima página, envie `after` com o `nextCursor` da resposta anterior |
 | `GET /owners/{owner}/accounts/{accountId}/bills?page=&pageSize=` | Faturas de uma conta de cartão (`pageSize` até 500) |
+| `GET /bill/{id}?owner=&accountId=` | Detalhe de uma fatura de cartão: resumo, encargos, pagamentos e compras. `id` é o `bills[].id` da listagem de faturas. `owner` e `accountId` são obrigatórios |
 | `GET /summary?dateFrom=&dateTo=` | Resumo dos donos em BRL: `incomes` (o que há e o que entrou nas contas bancárias) e `expenses` (o que o cartão cobra). Datas em `yyyy-mm-dd` |
 
 Em `/accounts` e `/credit-cards`, a falha de um dono não descarta os demais: a
@@ -249,6 +250,44 @@ contas dele falhando, vale o erro normal (404 ou 502).
 A rota `/owners/{owner}/accounts/{accountId}/transactions` continua existindo, com a
 paginação por `after`.
 
+## Detalhe de uma fatura (`GET /bill/{id}`)
+
+`GET /bill/{id}?owner=&accountId=` junta o resumo da fatura (`GET /bills/{id}` na Pluggy) e as
+compras dela (`GET /v2/transactions` filtrado por `billId`, em todas as páginas). `id` é o
+`bills[].id` da listagem de faturas, e `accountId` é a conta do cartão. As datas saem em
+`yyyy-mm-dd`, diferente da listagem de faturas. Os campos que a Pluggy não informa saem `null`,
+e `financeCharges` e `payments` sem dados saem como lista vazia. As compras vêm da mais recente
+para a mais antiga, e `installment` (`number` e `total`) aparece só em compra parcelada.
+
+Qualquer falha da Pluggy ao buscar a fatura ou as compras derruba a requisição inteira, sem
+resposta parcial. Fatura inexistente responde 404.
+
+Limite conhecido: a API não confere se `accountId` é a conta da fatura. Com uma conta que não é
+a da fatura, a resposta sai 200 com `transactions` vazio.
+
+```json
+{
+  "owner": "marcelo",
+  "accountId": "c1",
+  "bill": {
+    "id": "b1", "dueDate": "2026-11-20", "closingDate": "2026-11-10",
+    "totalAmount": 1520.75, "currencyCode": "BRL", "minimumPaymentAmount": 228.11,
+    "allowsInstallments": true,
+    "financeCharges": [ { "id": "fc1", "type": "IOF", "amount": 12.5, "currencyCode": "BRL",
+                          "additionalInfo": null } ],
+    "payments": [ { "id": "p1", "valueType": "PARTIAL", "paymentDate": "2026-11-18",
+                    "paymentMode": "PIX", "amount": 300, "currencyCode": "BRL" } ]
+  },
+  "transactions": [
+    { "id": "t1", "date": "2026-11-10", "description": "Loja", "amount": 50, "currencyCode": "BRL",
+      "category": "Compras", "type": "DEBIT", "status": "POSTED",
+      "installment": { "number": 3, "total": 10 } },
+    { "id": "t2", "date": "2026-11-08", "description": "Café", "amount": 5, "currencyCode": "BRL",
+      "category": null, "type": "DEBIT", "status": "POSTED" }
+  ]
+}
+```
+
 ## Empréstimos (`GET /loans`)
 
 Traz os empréstimos de todos os itens de cada dono, com a mesma regra de falha
@@ -294,7 +333,7 @@ Erros seguem o formato `{"status", "error", "message"}`:
 | Parâmetro inválido | 400 |
 | Chave de API ausente ou inválida | 401 |
 | Origem de navegador não permitida | 403 |
-| Dono não configurado, ou conta não encontrada na Pluggy | 404 |
+| Dono não configurado, ou conta ou fatura não encontrada na Pluggy | 404 |
 | Limite de requisições da Pluggy | 429 |
 | Credenciais rejeitadas ou outro erro da Pluggy | 502 |
 | Pluggy indisponível ou sem resposta | 504 |
