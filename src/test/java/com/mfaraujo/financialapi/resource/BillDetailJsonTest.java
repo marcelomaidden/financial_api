@@ -93,4 +93,28 @@ class BillDetailJsonTest {
 		assertThat(tx.path("category").isNull()).isTrue();
 	}
 
+	@Test
+	void serializesTheAmountInAccountCurrencyOnlyForPurchasesOutsideBrlThatHaveIt() {
+		BillDetail bill = new BillDetail("b1", LocalDate.of(2026, 11, 20), null, new BigDecimal("10"), "BRL", null,
+				null, List.of(), List.of());
+		OffsetDateTime date = OffsetDateTime.parse("2026-11-10T12:00:00Z");
+		Transaction usd = new Transaction("usd", date, "Netflix", new BigDecimal("-58"), "USD",
+				TransactionTypesEnum.DEBIT, "POSTED", null, "b1", new BigDecimal("-298.19"), null);
+		Transaction brl = new Transaction("brl", date, "Café", new BigDecimal("-5"), "BRL", TransactionTypesEnum.DEBIT,
+				"POSTED", null, "b1", new BigDecimal("-5"), null);
+		Transaction usdWithoutValue = new Transaction("usd2", date, "Loja", new BigDecimal("-10"), "USD",
+				TransactionTypesEnum.DEBIT, "POSTED", null, "b1", null, null);
+
+		JsonNode json = mapper.valueToTree(ResponseMapper.toBillDetail("marcelo", "c1",
+				new BillDetailResult(bill, List.of(usd, brl, usdWithoutValue))));
+
+		JsonNode transactions = json.path("transactions");
+		assertThat(transactions.get(0).path("amountInAccountCurrency").isNumber()).isTrue();
+		assertThat(transactions.get(0).path("amountInAccountCurrency").decimalValue()).isEqualByComparingTo("-298.19");
+		assertThat(transactions.get(0).path("amount").decimalValue()).isEqualByComparingTo("-58");
+		assertThat(transactions.get(0).path("currencyCode").asString()).isEqualTo("USD");
+		assertThat(transactions.get(1).has("amountInAccountCurrency")).isFalse();
+		assertThat(transactions.get(2).has("amountInAccountCurrency")).isFalse();
+	}
+
 }

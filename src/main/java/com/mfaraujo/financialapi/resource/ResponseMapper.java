@@ -3,6 +3,7 @@ package com.mfaraujo.financialapi.resource;
 import java.util.List;
 import java.util.function.Function;
 
+import com.mfaraujo.financialapi.domain.enums.CurrencyEnum;
 import com.mfaraujo.financialapi.domain.model.Account;
 import com.mfaraujo.financialapi.domain.model.Bill;
 import com.mfaraujo.financialapi.domain.model.BillDetail;
@@ -98,12 +99,17 @@ final class ResponseMapper {
 				result.transactions().stream().map(ResponseMapper::toBillTransaction).toList());
 	}
 
-	/** A data da compra vira o dia lido, sem conversão de fuso. */
+	/**
+	 * A data da compra vira o dia lido, sem conversão de fuso. {@code amountInAccountCurrency}
+	 * só vai na compra fora de BRL, como em {@code expenses.transactions}.
+	 */
 	static BillDetailResponse.BillTransaction toBillTransaction(Transaction tx) {
 		Transaction.Installment installment = tx.installment();
+		boolean brl = CurrencyEnum.BRL.getType().equals(tx.currencyCode());
 		return new BillDetailResponse.BillTransaction(tx.id(), tx.date() == null ? null : tx.date().toLocalDate(),
 				tx.description(), tx.amount(), tx.currencyCode(), tx.category(), tx.type().getType(), tx.status(),
-				installment == null ? null : new Installment(installment.number(), installment.total()));
+				installment == null ? null : new Installment(installment.number(), installment.total()),
+				brl ? null : tx.amountInAccountCurrency());
 	}
 
 	static OwnerLoans toOwnerLoans(OwnerLoansResult result) {

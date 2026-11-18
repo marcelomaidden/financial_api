@@ -274,4 +274,19 @@ class ResponseMapperTest {
 		assertThat(response.transactions()).isEmpty();
 	}
 
+	@Test
+	void billTransactionCarriesTheAmountInAccountCurrencyOnlyOutsideBrl() {
+		Transaction usd = new Transaction("t1", DATE, "Netflix", new BigDecimal("-58"), "USD",
+				TransactionTypesEnum.DEBIT, "POSTED", null, "b1", new BigDecimal("-298.19"), null);
+		Transaction brlWithValue = new Transaction("t2", DATE, "Café", new BigDecimal("-5"), "BRL",
+				TransactionTypesEnum.DEBIT, "POSTED", null, "b1", new BigDecimal("-5"), null);
+		Transaction usdWithoutValue = new Transaction("t3", DATE, "Loja", new BigDecimal("-10"), "USD",
+				TransactionTypesEnum.DEBIT, "POSTED", null, "b1", null, null);
+
+		assertThat(ResponseMapper.toBillTransaction(usd).amountInAccountCurrency()).isEqualByComparingTo("-298.19");
+		assertThat(ResponseMapper.toBillTransaction(usd).amount()).isEqualByComparingTo("-58");
+		assertThat(ResponseMapper.toBillTransaction(brlWithValue).amountInAccountCurrency()).isNull();
+		assertThat(ResponseMapper.toBillTransaction(usdWithoutValue).amountInAccountCurrency()).isNull();
+	}
+
 }
