@@ -3,11 +3,13 @@ package com.mfaraujo.financialapi.service;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 import com.mfaraujo.financialapi.client.PluggyClient;
 import com.mfaraujo.financialapi.client.dto.PluggyBill;
 import com.mfaraujo.financialapi.client.dto.PluggyPage;
 import com.mfaraujo.financialapi.domain.model.Bill;
+import com.mfaraujo.financialapi.domain.model.BillDetail;
 import com.mfaraujo.financialapi.domain.model.Transaction;
 import com.mfaraujo.financialapi.domain.result.BillDetailResult;
 import com.mfaraujo.financialapi.domain.result.BillPage;
@@ -33,13 +35,21 @@ public class BillService {
 	}
 
 	/**
-	 * Detalhe de uma fatura com as compras dela, da mais recente para a mais antiga. Qualquer
-	 * falha da Pluggy sobe sem resposta parcial.
+	 * Detalhe de uma fatura com as compras dela, da mais recente para a mais antiga. A Pluggy
+	 * não filtra transações por fatura no {@code /v2/transactions}: as transações da conta são
+	 * buscadas na janela de datas da fatura e só ficam as marcadas com o {@code billId} dela.
+	 * Qualquer falha da Pluggy sobe sem resposta parcial.
 	 */
 	public BillDetailResult getBillDetail(String owner, String id, String accountId) {
 		owners.require(owner);
-		var bill = PluggyMapper.toBillDetail(pluggyClient.retrieveBill(owner, id));
-		List<Transaction> transactions = new ArrayList<>(transactionService.getAllByBill(owner, accountId, id));
+		BillDetail bill = PluggyMapper.toBillDetail(pluggyClient.retrieveBill(owner, id));
+		Optional<BillDetail.DateRange> window = bill.transactionsWindow();
+		List<Transaction> transactions = new ArrayList<>(transactionService
+				.getAllTransactions(owner, accountId, window.map(BillDetail.DateRange::from).orElse(null),
+						window.map(BillDetail.DateRange::to).orElse(null))
+				.stream()
+				.filter(tx -> id.equals(tx.billId()))
+				.toList());
 		transactions.sort(Comparator.comparing(Transaction::date, Comparator.nullsLast(Comparator.reverseOrder())));
 		return new BillDetailResult(bill, transactions);
 	}

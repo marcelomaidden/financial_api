@@ -1,11 +1,7 @@
 package com.mfaraujo.financialapi.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -20,9 +16,6 @@ import com.mfaraujo.financialapi.client.PluggyClient;
 import com.mfaraujo.financialapi.client.dto.PluggyCursorPage;
 import com.mfaraujo.financialapi.client.dto.PluggyTransaction;
 import com.mfaraujo.financialapi.domain.model.Transaction;
-import com.mfaraujo.financialapi.exception.PluggyException;
-import com.mfaraujo.financialapi.exception.UnknownOwnerException;
-import org.springframework.http.HttpStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -36,13 +29,10 @@ class TransactionServiceTest {
 
 	private TransactionService service;
 
-	private OwnerRegistry owners;
-
 	@BeforeEach
 	void setUp() {
 		client = mock(PluggyClient.class);
-		owners = mock(OwnerRegistry.class);
-		service = new TransactionService(client, owners);
+		service = new TransactionService(client, mock(OwnerRegistry.class));
 	}
 
 	@Test
@@ -112,54 +102,6 @@ class TransactionServiceTest {
 				.thenReturn(new PluggyCursorPage<>(null, null));
 
 		assertThat(service.getAllCreatedSince("marcelo", "a1", since)).isEmpty();
-	}
-
-	@Test
-	void byBillReturnsSinglePage() {
-		when(client.listTransactionsByBill("marcelo", "a1", "b1", null))
-				.thenReturn(new PluggyCursorPage<>(List.of(pluggyTx("t1")), null));
-
-		assertThat(service.getAllByBill("marcelo", "a1", "b1")).extracting(Transaction::id).containsExactly("t1");
-		verify(client, times(1)).listTransactionsByBill("marcelo", "a1", "b1", null);
-	}
-
-	@Test
-	void byBillFollowsCursorAcrossPages() {
-		when(client.listTransactionsByBill("marcelo", "a1", "b1", null))
-				.thenReturn(new PluggyCursorPage<>(List.of(pluggyTx("t1")), "?billId=b1&after=c2"));
-		when(client.listTransactionsByBill("marcelo", "a1", "b1", "c2"))
-				.thenReturn(new PluggyCursorPage<>(List.of(pluggyTx("t2")), "?after=c3"));
-		when(client.listTransactionsByBill("marcelo", "a1", "b1", "c3"))
-				.thenReturn(new PluggyCursorPage<>(List.of(pluggyTx("t3")), null));
-
-		assertThat(service.getAllByBill("marcelo", "a1", "b1")).extracting(Transaction::id)
-				.containsExactly("t1", "t2", "t3");
-	}
-
-	@Test
-	void byBillReturnsEmptyListForEmptyPage() {
-		when(client.listTransactionsByBill("marcelo", "a1", "b1", null))
-				.thenReturn(new PluggyCursorPage<>(null, null));
-
-		assertThat(service.getAllByBill("marcelo", "a1", "b1")).isEmpty();
-	}
-
-	@Test
-	void byBillPropagatesAFailureOnALaterPageWithoutPartialResult() {
-		when(client.listTransactionsByBill("marcelo", "a1", "b1", null))
-				.thenReturn(new PluggyCursorPage<>(List.of(pluggyTx("t1")), "?after=c2"));
-		when(client.listTransactionsByBill("marcelo", "a1", "b1", "c2"))
-				.thenThrow(new PluggyException("marcelo", HttpStatus.BAD_GATEWAY, "falhou"));
-
-		assertThatThrownBy(() -> service.getAllByBill("marcelo", "a1", "b1")).isInstanceOf(PluggyException.class);
-	}
-
-	@Test
-	void byBillWithAnUnknownOwnerDoesNotCallPluggy() {
-		doThrow(new UnknownOwnerException("fulano")).when(owners).require("fulano");
-
-		assertThatThrownBy(() -> service.getAllByBill("fulano", "a1", "b1")).isInstanceOf(UnknownOwnerException.class);
-		verify(client, never()).listTransactionsByBill(any(), any(), any(), any());
 	}
 
 	private static PluggyTransaction pluggyTx(String id) {
