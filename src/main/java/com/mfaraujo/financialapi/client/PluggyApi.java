@@ -49,11 +49,4 @@ public interface PluggyApi {
 	@GetExchange("/bills/{id}")
 	PluggyBillDetail retrieveBill(@PathVariable("id") String id);
 
-	/** Transações de uma fatura de cartão. Não combina com {@code dateFrom} nem {@code dateTo}. */
-	@GetExchange("/v2/transactions")
-	PluggyCursorPage<PluggyTransaction> listTransactionsByBill(
-			@RequestParam("accountId") String accountId,
-			@RequestParam("billId") String billId,
-			@RequestParam(name = "after", required = false) String after);
-
 }

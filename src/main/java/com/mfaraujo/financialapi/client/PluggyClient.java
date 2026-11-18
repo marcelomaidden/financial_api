@@ -78,11 +78,6 @@ public class PluggyClient {
 		return api(owner).retrieveBill(id);
 	}
 
-	public PluggyCursorPage<PluggyTransaction> listTransactionsByBill(String owner, String accountId, String billId,
-			String after) {
-		return api(owner).listTransactionsByBill(accountId, billId, after);
-	}
-
 	private PluggyApi api(String owner) {
 		PluggyApi api = apisByOwner.get(owner);
 		if (api == null) {

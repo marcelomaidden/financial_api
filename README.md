@@ -253,8 +253,13 @@ paginação por `after`.
 ## Detalhe de uma fatura (`GET /bill/{id}`)
 
 `GET /bill/{id}?owner=&accountId=` junta o resumo da fatura (`GET /bills/{id}` na Pluggy) e as
-compras dela (`GET /v2/transactions` filtrado por `billId`, em todas as páginas). `id` é o
-`bills[].id` da listagem de faturas, e `accountId` é a conta do cartão. As datas saem em
+compras dela. `id` é o `bills[].id` da listagem de faturas, e `accountId` é a conta do cartão.
+
+O `GET /v2/transactions` da Pluggy não filtra por fatura. A API busca as transações da conta
+numa janela de datas tirada da própria fatura, em todas as páginas, e guarda só as marcadas com
+o `id` da fatura (`creditCardMetadata.billId`). A janela vai do fechamento menos 1 mês e 10 dias
+até o fechamento mais 10 dias. Sem fechamento, vai do vencimento menos 1 mês e 20 dias até o
+vencimento. Sem as duas datas, a busca é feita sem janela. As datas saem em
 `yyyy-mm-dd`, diferente da listagem de faturas. Os campos que a Pluggy não informa saem `null`,
 e `financeCharges` e `payments` sem dados saem como lista vazia. As compras vêm da mais recente
 para a mais antiga, e `installment` (`number` e `total`) aparece só em compra parcelada.
@@ -262,8 +267,12 @@ para a mais antiga, e `installment` (`number` e `total`) aparece só em compra p
 Qualquer falha da Pluggy ao buscar a fatura ou as compras derruba a requisição inteira, sem
 resposta parcial. Fatura inexistente responde 404.
 
-Limite conhecido: a API não confere se `accountId` é a conta da fatura. Com uma conta que não é
-a da fatura, a resposta sai 200 com `transactions` vazio.
+Limites conhecidos:
+- A API não confere se `accountId` é a conta da fatura. Com uma conta que não é a da fatura, a
+  resposta sai 200 com `transactions` vazio.
+- Uma transação da fatura com `date` fora da janela não aparece. Nas parcelas, a Pluggy usa como
+  `date` o dia do lançamento na fatura (`billPostDate`), e não o dia da compra, então parcelas
+  de compras antigas entram na janela. Isso foi conferido numa instituição só.
 
 ```json
 {
