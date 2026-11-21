@@ -74,6 +74,22 @@ class SummaryJsonTest {
 	}
 
 	@Test
+	void serializesExpensesAccountDebitsWithPositiveAmounts() {
+		JsonNode debits = summaryJson().path("expenses").path("accountDebits");
+
+		assertThat(debits.path("total").path("value").decimalValue()).isEqualByComparingTo("42.50");
+		assertThat(debits.path("total").path("currencyCode").asString()).isEqualTo("BRL");
+		JsonNode tx = debits.path("detail").path("marcelo").get(0);
+		assertThat(tx.path("id").asString()).isEqualTo("d1");
+		assertThat(tx.path("description").asString()).isEqualTo("Mercado");
+		assertThat(tx.path("amount").decimalValue()).isEqualByComparingTo("42.50");
+		assertThat(tx.path("currencyCode").asString()).isEqualTo("BRL");
+		assertThat(tx.path("accountId").asString()).isEqualTo("m1");
+		assertThat(tx.has("date")).isTrue();
+		assertThat(debits.path("detail").has("luana")).isFalse();
+	}
+
+	@Test
 	void serializesExpensesOwed() {
 		JsonNode owed = summaryJson().path("expenses").path("owed");
 
@@ -138,7 +154,9 @@ class SummaryJsonTest {
 				any())).thenReturn(List.of());
 		when(transactionService.getAllTransactions("marcelo", "m1", LocalDate.of(2026, 11, 1), TODAY))
 				.thenReturn(List.of(new Transaction("t1", DATE, "PIX Recebido", new BigDecimal("19.99"), "BRL",
-						TransactionTypesEnum.CREDIT, "POSTED", null, null, null, null)));
+						TransactionTypesEnum.CREDIT, "POSTED", null, null, null, null),
+						new Transaction("d1", DATE, "Mercado", new BigDecimal("-42.50"), "BRL",
+								TransactionTypesEnum.DEBIT, "POSTED", null, null, null, null)));
 		when(transactionService.getAllCreatedSince(anyString(), anyString(), any())).thenReturn(List.of());
 		when(transactionService.getAllCreatedSince("marcelo", "c1", Instant.parse("2026-11-03T03:00:00Z")))
 				.thenReturn(List.of(

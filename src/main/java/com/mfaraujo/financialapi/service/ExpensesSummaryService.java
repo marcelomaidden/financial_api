@@ -103,7 +103,8 @@ public class ExpensesSummaryService {
 				.map(OwedBill::totalAmount).toList());
 		var transactionsTotal = SummaryTotals.brl(purchaseAmounts);
 		return new SectionResult<>(new ExpensesSummary(new SummarySection<>(owedTotal, owedDetail),
-				new SummarySection<>(transactionsTotal, transactionsDetail)), errors);
+				new SummarySection<>(transactionsTotal, transactionsDetail),
+				new SummarySection<>(SummaryTotals.brl(List.of()), Map.of())), errors);
 	}
 
 	/** Faturas em BRL dos cartões com vencimento entre {@code dueFrom} e {@code dueTo}. */

@@ -9,7 +9,6 @@ import java.util.List;
 
 import com.mfaraujo.financialapi.domain.result.OwnerAccountsResult;
 import com.mfaraujo.financialapi.resource.dto.ExpensesSummary;
-import com.mfaraujo.financialapi.resource.dto.IncomesSummary;
 import com.mfaraujo.financialapi.resource.dto.SummaryError;
 import com.mfaraujo.financialapi.resource.dto.SummaryResponse;
 
@@ -70,13 +69,15 @@ public class SummaryService {
 			}
 		}
 
-		SectionResult<IncomesSummary> incomes = incomesSummaryService.summarize(owners, from, to);
+		SectionResult<IncomesSummaryService.AccountFlows> flows = incomesSummaryService.summarize(owners, from, to);
 		SectionResult<ExpensesSummary> expenses = expensesSummaryService.summarize(owners, expensesPeriod);
-		errors.addAll(incomes.errors());
+		errors.addAll(flows.errors());
 		errors.addAll(expenses.errors());
 
 		List<SummaryError> distinctErrors = errors.stream().distinct().toList();
-		return new SummaryResponse(incomes.section(), expenses.section(), !distinctErrors.isEmpty(), distinctErrors);
+		ExpensesSummary expensesWithDebits = expenses.section().withAccountDebits(flows.section().outflows());
+		return new SummaryResponse(flows.section().incomes(), expensesWithDebits, !distinctErrors.isEmpty(),
+				distinctErrors);
 	}
 
 }

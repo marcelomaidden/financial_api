@@ -38,6 +38,12 @@ public record Transaction(
 	public record Installment(int number, int total) {
 	}
 
+	/** Saída de dinheiro em BRL e com valor informado. */
+	public boolean isBrlDebit() {
+		return TransactionTypesEnum.DEBIT == type && CurrencyEnum.BRL.getType().equals(currencyCode)
+				&& amount != null;
+	}
+
 	/** Entrada de dinheiro em BRL e com valor informado. */
 	public boolean isBrlCredit() {
 		return TransactionTypesEnum.CREDIT == type && CurrencyEnum.BRL.getType().equals(currencyCode)

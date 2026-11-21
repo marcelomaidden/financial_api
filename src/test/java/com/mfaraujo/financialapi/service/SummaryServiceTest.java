@@ -19,6 +19,7 @@ import java.util.Map;
 
 import com.mfaraujo.financialapi.domain.result.OwnerAccountsResult;
 import com.mfaraujo.financialapi.exception.AllOwnersFailedException;
+import com.mfaraujo.financialapi.resource.dto.AccountDebit;
 import com.mfaraujo.financialapi.resource.dto.ApiError;
 import com.mfaraujo.financialapi.resource.dto.ExpensesSummary;
 import com.mfaraujo.financialapi.resource.dto.IncomesSummary;
@@ -42,8 +43,14 @@ class SummaryServiceTest {
 	private static final IncomesSummary INCOMES = new IncomesSummary(new SummarySection<>(ZERO, Map.of()),
 			new SummarySection<>(ZERO, Map.of()));
 
+	private static final SummarySection<AccountDebit> OUTFLOWS = new SummarySection<>(new Money(BigDecimal.TEN, "BRL"),
+			Map.of());
+
 	private static final ExpensesSummary EXPENSES = new ExpensesSummary(new SummarySection<>(ZERO, Map.of()),
-			new SummarySection<>(ZERO, Map.of()));
+			new SummarySection<>(ZERO, Map.of()), new SummarySection<>(ZERO, Map.of()));
+
+	private static final IncomesSummaryService.AccountFlows FLOWS = new IncomesSummaryService.AccountFlows(INCOMES,
+			OUTFLOWS);
 
 	private AccountService accountService;
 
@@ -60,7 +67,7 @@ class SummaryServiceTest {
 		expensesService = mock(ExpensesSummaryService.class);
 		Clock clock = Clock.fixed(TODAY.atTime(12, 0).atZone(ZONE).toInstant(), ZONE);
 		service = new SummaryService(accountService, incomesService, expensesService, clock);
-		when(incomesService.summarize(any(), any(), any())).thenReturn(new SectionResult<>(INCOMES, List.of()));
+		when(incomesService.summarize(any(), any(), any())).thenReturn(new SectionResult<>(FLOWS, List.of()));
 		when(expensesService.summarize(any(), any())).thenReturn(new SectionResult<>(EXPENSES, List.of()));
 	}
 
@@ -72,7 +79,9 @@ class SummaryServiceTest {
 
 		verify(accountService, times(1)).getAccounts(null);
 		assertThat(summary.incomes()).isSameAs(INCOMES);
-		assertThat(summary.expenses()).isSameAs(EXPENSES);
+		assertThat(summary.expenses().owed()).isSameAs(EXPENSES.owed());
+		assertThat(summary.expenses().transactions()).isSameAs(EXPENSES.transactions());
+		assertThat(summary.expenses().accountDebits()).isSameAs(OUTFLOWS);
 		assertThat(summary.partial()).isFalse();
 		assertThat(summary.errors()).isEmpty();
 	}
@@ -99,7 +108,7 @@ class SummaryServiceTest {
 		ApiError error = new ApiError(502, "Bad Gateway", "contas");
 		accounts(owner("marcelo"), new OwnerAccountsResult("luana", List.of(), error));
 		when(incomesService.summarize(any(), any(), any()))
-				.thenReturn(new SectionResult<>(INCOMES, List.of(new SummaryError("marcelo", 500, "incomes"))));
+				.thenReturn(new SectionResult<>(FLOWS, List.of(new SummaryError("marcelo", 500, "incomes"))));
 		when(expensesService.summarize(any(), any()))
 				.thenReturn(new SectionResult<>(EXPENSES, List.of(new SummaryError("marcelo", 500, "expenses"))));
 
@@ -114,7 +123,7 @@ class SummaryServiceTest {
 		SummaryError same = new SummaryError("marcelo", 502, "Erro ao consultar a Pluggy");
 		accounts(owner("marcelo"));
 		when(incomesService.summarize(any(), any(), any()))
-				.thenReturn(new SectionResult<>(INCOMES, List.of(same)));
+				.thenReturn(new SectionResult<>(FLOWS, List.of(same)));
 		when(expensesService.summarize(any(), any())).thenReturn(new SectionResult<>(EXPENSES,
 				List.of(same, new SummaryError("marcelo", 502, "outro motivo"), same)));
 
