@@ -10,6 +10,7 @@ import com.mfaraujo.financialapi.domain.model.Account;
 import com.mfaraujo.financialapi.domain.model.Transaction;
 import com.mfaraujo.financialapi.domain.result.OwnerAccountsResult;
 import com.mfaraujo.financialapi.exception.ApiErrors;
+import com.mfaraujo.financialapi.resource.dto.AccountDebit;
 import com.mfaraujo.financialapi.resource.dto.ApiError;
 import com.mfaraujo.financialapi.resource.dto.IncomeAccount;
 import com.mfaraujo.financialapi.resource.dto.IncomeTransaction;
@@ -23,10 +24,11 @@ import org.springframework.stereotype.Service;
 
 /**
  * Seção {@code incomes} do resumo: saldo das contas {@code BANK} e entradas
- * ({@code CREDIT}) do período nessas contas, só em BRL.
+ * ({@code CREDIT}) do período nessas contas, só em BRL. A mesma busca de transações
+ * alimenta as saídas ({@code DEBIT}) do período, devolvidas junto em {@link AccountFlows}.
  * <p>
  * Recebe apenas donos cuja consulta de contas teve sucesso. Uma falha na consulta
- * de transações tira o dono de {@code transactions} e entra nos erros da seção.
+ * de transações tira o dono das entradas e das saídas e entra nos erros da seção.
  */
 @Service
 public class IncomesSummaryService {
@@ -39,9 +41,14 @@ public class IncomesSummaryService {
 		this.transactionService = transactionService;
 	}
 
-	public SectionResult<IncomesSummary> summarize(List<OwnerAccountsResult> owners, LocalDate from, LocalDate to) {
+	/** Entradas do resumo e as saídas das mesmas contas e do mesmo período. */
+	public record AccountFlows(IncomesSummary incomes, SummarySection<AccountDebit> outflows) {
+	}
+
+	public SectionResult<AccountFlows> summarize(List<OwnerAccountsResult> owners, LocalDate from, LocalDate to) {
 		Map<String, List<IncomeAccount>> availableDetail = new LinkedHashMap<>();
 		Map<String, List<IncomeTransaction>> transactionsDetail = new LinkedHashMap<>();
+		Map<String, List<AccountDebit>> outflowsDetail = new LinkedHashMap<>();
 		List<SummaryError> errors = new ArrayList<>();
 
 		for (OwnerAccountsResult owner : owners) {
@@ -49,7 +56,9 @@ public class IncomesSummaryService {
 			availableDetail.put(owner.owner(), toIncomeAccounts(bankAccounts));
 
 			try {
-				transactionsDetail.put(owner.owner(), incomesOf(owner.owner(), bankAccounts, from, to));
+				Flows flows = flowsOf(owner.owner(), bankAccounts, from, to);
+				transactionsDetail.put(owner.owner(), flows.incomes());
+				outflowsDetail.put(owner.owner(), flows.outflows());
 			}
 			catch (RuntimeException ex) {
 				ApiError error = ApiErrors.from(ex);
@@ -60,7 +69,8 @@ public class IncomesSummaryService {
 			}
 		}
 
-		return new SectionResult<>(incomesSummary(availableDetail, transactionsDetail), errors);
+		return new SectionResult<>(new AccountFlows(incomesSummary(availableDetail, transactionsDetail),
+				outflowsSummary(outflowsDetail)), errors);
 	}
 
 	private List<Account> bankAccounts(OwnerAccountsResult owner) {
@@ -88,18 +98,36 @@ public class IncomesSummaryService {
 				new SummarySection<>(totalTransactions, transactionsDetail));
 	}
 
-	/** Entradas do período de todas as contas do dono. Qualquer falha descarta o dono inteiro. */
-	private List<IncomeTransaction> incomesOf(String owner, List<Account> accounts, LocalDate from, LocalDate to) {
+	private SummarySection<AccountDebit> outflowsSummary(Map<String, List<AccountDebit>> outflowsDetail) {
+		var total = SummaryTotals.brl(outflowsDetail.values().stream().flatMap(List::stream)
+				.map(AccountDebit::amount).toList());
+		return new SummarySection<>(total, outflowsDetail);
+	}
+
+	private record Flows(List<IncomeTransaction> incomes, List<AccountDebit> outflows) {
+	}
+
+	/**
+	 * Entradas e saídas do período de todas as contas do dono, numa busca por conta. As saídas
+	 * levam o valor absoluto: um débito é saída qualquer que seja o sinal informado. Qualquer
+	 * falha descarta o dono inteiro.
+	 */
+	private Flows flowsOf(String owner, List<Account> accounts, LocalDate from, LocalDate to) {
 		List<IncomeTransaction> incomes = new ArrayList<>();
+		List<AccountDebit> outflows = new ArrayList<>();
 		for (Account account : accounts) {
 			for (Transaction tx : transactionService.getAllTransactions(owner, account.id(), from, to)) {
 				if (tx.isBrlCredit()) {
 					incomes.add(new IncomeTransaction(tx.id(), tx.description(), tx.amount(), tx.currencyCode(),
 							tx.date(), account.id()));
 				}
+				else if (tx.isBrlDebit()) {
+					outflows.add(new AccountDebit(tx.id(), tx.description(), tx.amount().abs(), tx.currencyCode(),
+							tx.date(), account.id()));
+				}
 			}
 		}
-		return incomes;
+		return new Flows(incomes, outflows);
 	}
 
 }

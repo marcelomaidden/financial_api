@@ -36,6 +36,15 @@ class ModelRulesTest {
 	}
 
 	@Test
+	void brlDebitNeedsDebitTypeBrlAndAmount() {
+		assertThat(tx(TransactionTypesEnum.DEBIT, "BRL", "5").isBrlDebit()).isTrue();
+		assertThat(tx(TransactionTypesEnum.CREDIT, "BRL", "5").isBrlDebit()).isFalse();
+		assertThat(tx(TransactionTypesEnum.UNKNOWN, "BRL", "5").isBrlDebit()).isFalse();
+		assertThat(tx(TransactionTypesEnum.DEBIT, "USD", "5").isBrlDebit()).isFalse();
+		assertThat(tx(TransactionTypesEnum.DEBIT, "BRL", null).isBrlDebit()).isFalse();
+	}
+
+	@Test
 	void brlCreditCardNeedsCreditTypeAndBrl() {
 		assertThat(account(AccountTypesEnum.CREDIT, "BRL", "1").isBrlCreditCard()).isTrue();
 		assertThat(account(AccountTypesEnum.CREDIT, "USD", "1").isBrlCreditCard()).isFalse();

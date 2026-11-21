@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -48,12 +51,12 @@ class IncomesSummaryServiceTest {
 		txs("marcelo", "m2");
 		txs("luana", "l1", tx("t2", "Salário", "1000", "BRL", TransactionTypesEnum.CREDIT));
 
-		SectionResult<IncomesSummary> result = service.summarize(
+		SectionResult<IncomesSummaryService.AccountFlows> result = service.summarize(
 				List.of(owner("marcelo", bank("m1", "Nubank", "500.50"), bank("m2", "Itaú", "100")),
 						owner("luana", bank("l1", "Inter", "200"))),
 				FROM, TO);
 
-		IncomesSummary incomes = result.section();
+		IncomesSummary incomes = result.section().incomes();
 		assertThat(result.errors()).isEmpty();
 		assertThat(incomes.available().total().value()).isEqualByComparingTo("800.50");
 		assertThat(incomes.available().total().currencyCode()).isEqualTo("BRL");
@@ -70,7 +73,7 @@ class IncomesSummaryServiceTest {
 
 		IncomesSummary incomes = service.summarize(List.of(owner("marcelo", bank("m1", "Nubank", "500"),
 				account("c1", "Cartão", AccountTypesEnum.CREDIT, "999", "BRL"),
-				account("u1", "Dólar", AccountTypesEnum.BANK, "300", "USD"))), FROM, TO).section();
+				account("u1", "Dólar", AccountTypesEnum.BANK, "300", "USD"))), FROM, TO).section().incomes();
 
 		assertThat(incomes.available().detail().get("marcelo")).extracting("id").containsExactly("m1");
 		assertThat(incomes.available().total().value()).isEqualByComparingTo("500");
@@ -83,10 +86,59 @@ class IncomesSummaryServiceTest {
 				tx("usd", "Exterior", "10", "USD", TransactionTypesEnum.CREDIT));
 
 		IncomesSummary incomes = service.summarize(List.of(owner("marcelo", bank("m1", "Nubank", "0"))), FROM, TO)
-				.section();
+				.section().incomes();
 
 		assertThat(incomes.transactions().detail().get("marcelo")).extracting("id").containsExactly("in");
 		assertThat(incomes.transactions().total().value()).isEqualByComparingTo("50");
+	}
+
+	@Test
+	void keepsOnlyBrlDebitsAsOutflowsWithPositiveAmounts() {
+		txs("marcelo", "m1", tx("in", "PIX", "50", "BRL", TransactionTypesEnum.CREDIT),
+				tx("out1", "Mercado", "30", "BRL", TransactionTypesEnum.DEBIT),
+				tx("out2", "Padaria", "-12.50", "BRL", TransactionTypesEnum.DEBIT),
+				tx("usd", "Exterior", "10", "USD", TransactionTypesEnum.DEBIT));
+
+		IncomesSummaryService.AccountFlows flows = service
+				.summarize(List.of(owner("marcelo", bank("m1", "Nubank", "0"))), FROM, TO).section();
+
+		assertThat(flows.outflows().detail().get("marcelo")).extracting("id").containsExactly("out1", "out2");
+		assertThat(flows.outflows().detail().get("marcelo")).extracting("accountId").containsOnly("m1");
+		assertThat(flows.outflows().total().value()).isEqualByComparingTo("42.50");
+		assertThat(flows.outflows().total().currencyCode()).isEqualTo("BRL");
+		assertThat(flows.incomes().transactions().detail().get("marcelo")).extracting("id").containsExactly("in");
+	}
+
+	@Test
+	void includesCardBillPaymentsInOutflows() {
+		txs("marcelo", "m1", tx("fatura", "PAGAMENTO FATURA CARTAO", "300", "BRL", TransactionTypesEnum.DEBIT));
+
+		IncomesSummaryService.AccountFlows flows = service
+				.summarize(List.of(owner("marcelo", bank("m1", "Nubank", "0"))), FROM, TO).section();
+
+		assertThat(flows.outflows().detail().get("marcelo")).extracting("id").containsExactly("fatura");
+	}
+
+	@Test
+	void ignoresCardAccountsForOutflows() {
+		txs("marcelo", "m1");
+
+		IncomesSummaryService.AccountFlows flows = service.summarize(List.of(owner("marcelo",
+				bank("m1", "Nubank", "0"), account("c1", "Cartão", AccountTypesEnum.CREDIT, "0", "BRL"))), FROM, TO)
+				.section();
+
+		assertThat(flows.outflows().detail().get("marcelo")).isEmpty();
+		verify(transactionService, never()).getAllTransactions(eq("marcelo"), eq("c1"), any(), any());
+	}
+
+	@Test
+	void fetchesTransactionsOncePerAccountForIncomesAndOutflows() {
+		txs("marcelo", "m1", tx("in", "PIX", "50", "BRL", TransactionTypesEnum.CREDIT),
+				tx("out", "Mercado", "30", "BRL", TransactionTypesEnum.DEBIT));
+
+		service.summarize(List.of(owner("marcelo", bank("m1", "Nubank", "0"))), FROM, TO);
+
+		verify(transactionService, times(1)).getAllTransactions("marcelo", "m1", FROM, TO);
 	}
 
 	@Test
@@ -95,7 +147,7 @@ class IncomesSummaryServiceTest {
 		txs("luana", "l1", tx("t1", "PIX Recebido de Marcelo", "300", "BRL", TransactionTypesEnum.CREDIT));
 
 		IncomesSummary incomes = service.summarize(List.of(owner("marcelo", bank("m1", "Nubank", "0")),
-				owner("luana", bank("l1", "Inter", "0"))), FROM, TO).section();
+				owner("luana", bank("l1", "Inter", "0"))), FROM, TO).section().incomes();
 
 		assertThat(incomes.transactions().detail().get("luana")).extracting("id").containsExactly("t1");
 	}
@@ -106,16 +158,31 @@ class IncomesSummaryServiceTest {
 				.thenThrow(new PluggyException("marcelo", HttpStatus.INTERNAL_SERVER_ERROR, "falhou"));
 		txs("luana", "l1", tx("t1", "PIX", "20", "BRL", TransactionTypesEnum.CREDIT));
 
-		SectionResult<IncomesSummary> result = service.summarize(
+		SectionResult<IncomesSummaryService.AccountFlows> result = service.summarize(
 				List.of(owner("marcelo", bank("m1", "Nubank", "500")), owner("luana", bank("l1", "Inter", "200"))),
 				FROM, TO);
 
-		IncomesSummary incomes = result.section();
+		IncomesSummary incomes = result.section().incomes();
 		assertThat(result.errors()).singleElement().satisfies(e -> assertThat(e.owner()).isEqualTo("marcelo"));
 		assertThat(incomes.available().detail()).containsOnlyKeys("marcelo", "luana");
 		assertThat(incomes.transactions().detail()).containsOnlyKeys("luana");
 		assertThat(incomes.available().total().value()).isEqualByComparingTo("700");
 		assertThat(incomes.transactions().total().value()).isEqualByComparingTo("20");
+	}
+
+	@Test
+	void dropsOwnerFromOutflowsWhenTransactionsFailAndKeepsTheOthers() {
+		when(transactionService.getAllTransactions(eq("marcelo"), eq("m1"), any(), any()))
+				.thenThrow(new PluggyException("marcelo", HttpStatus.INTERNAL_SERVER_ERROR, "falhou"));
+		txs("luana", "l1", tx("d1", "Mercado", "20", "BRL", TransactionTypesEnum.DEBIT));
+
+		SectionResult<IncomesSummaryService.AccountFlows> result = service.summarize(
+				List.of(owner("marcelo", bank("m1", "Nubank", "500")), owner("luana", bank("l1", "Inter", "200"))),
+				FROM, TO);
+
+		assertThat(result.errors()).singleElement().satisfies(e -> assertThat(e.owner()).isEqualTo("marcelo"));
+		assertThat(result.section().outflows().detail()).containsOnlyKeys("luana");
+		assertThat(result.section().outflows().total().value()).isEqualByComparingTo("20");
 	}
 
 	private void txs(String owner, String accountId, Transaction... txs) {

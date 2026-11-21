@@ -157,6 +157,7 @@ Soma, em BRL, o que os donos têm e devem. Só entram contas e valores em BRL.
 |---|---|
 | `incomes.available` | Saldo atual das contas `BANK`. Não depende do período |
 | `incomes.transactions` | Entradas (`CREDIT`) das contas `BANK` no período |
+| `expenses.accountDebits` | Saídas (`DEBIT`) das contas `BANK` no período, a mesma janela de `incomes.transactions` e a mesma busca. É o débito bruto: inclui pagamento de fatura de cartão e transferências entre contas próprias. O `amount` vem sempre positivo |
 | `expenses.owed` | Faturas dos cartões com `dueDate` no período, até o fim do mês de `dateTo`. Não informa se a fatura já foi paga |
 | `expenses.transactions` | Compras do cartão ainda sem fatura (`DEBIT`, `PENDING`, sem `billId`), buscadas pela data em que chegaram à Pluggy, numa janela de cada cartão. `amountInAccountCurrency` aparece só em compra fora de BRL, e o total usa esse valor. `installment` (`number` e `total`) aparece só em compra parcelada |
 
@@ -190,6 +191,11 @@ donos, a resposta é 502.
     }
   },
   "expenses": {
+    "accountDebits": {
+      "total": { "value": 42.50, "currencyCode": "BRL" },
+      "detail": { "marcelo": [ { "id": "...", "description": "Padaria Central", "amount": 42.50,
+                                 "currencyCode": "BRL", "date": "...", "accountId": "..." } ] }
+    },
     "owed": {
       "total": { "value": 250.40, "currencyCode": "BRL" },
       "detail": { "marcelo": [ { "id": "...", "accountId": "...", "name": "Cartão Nubank",

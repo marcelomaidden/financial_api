@@ -56,7 +56,7 @@ O sistema SHALL compor `incomes.transactions` com transações de tipo `CREDIT` 
 - **THEN** a transação aparece como entrada de quem recebeu
 
 ### Requirement: Falha parcial no resumo
-O sistema SHALL, quando a consulta de um dono falhar e a de outro tiver sucesso, responder 200, excluir o dono com falha das partes afetadas, listar o dono em `errors` com `status` e `message` e marcar `partial` como `true`. Falha na consulta de contas SHALL excluir o dono de todas as partes de `incomes` e de `expenses`. Falha na consulta de transações de uma conta bancária SHALL excluir o dono apenas de `incomes.transactions`. Falha na consulta de faturas SHALL excluir o dono apenas de `expenses.owed`. Falha na consulta de transações de um cartão SHALL excluir o dono apenas de `expenses.transactions`. O sistema SHALL responder 502 no formato padrão de erro quando a consulta de contas falhar para todos os donos.
+O sistema SHALL, quando a consulta de um dono falhar e a de outro tiver sucesso, responder 200, excluir o dono com falha das partes afetadas, listar o dono em `errors` com `status` e `message` e marcar `partial` como `true`. Falha na consulta de contas SHALL excluir o dono de todas as partes de `incomes` e de `expenses`. Falha na consulta de transações de uma conta bancária SHALL excluir o dono apenas de `incomes.transactions` e de `expenses.accountDebits`, com um único erro. Falha na consulta de faturas SHALL excluir o dono apenas de `expenses.owed`. Falha na consulta de transações de um cartão SHALL excluir o dono apenas de `expenses.transactions`. O sistema SHALL responder 502 no formato padrão de erro quando a consulta de contas falhar para todos os donos.
 
 #### Scenario: Um dono falha nas contas
 - **WHEN** a consulta de contas falha para um dono e tem sucesso para o outro
@@ -64,7 +64,7 @@ O sistema SHALL, quando a consulta de um dono falhar e a de outro tiver sucesso,
 
 #### Scenario: Um dono falha nas transações
 - **WHEN** a consulta de transações de uma conta bancária falha para um dono
-- **THEN** a resposta é 200, `partial` é `true`, `errors` identifica o dono, ele continua em `incomes.available` e fica fora de `incomes.transactions`
+- **THEN** a resposta é 200, `partial` é `true`, `errors` identifica o dono uma vez, ele continua em `incomes.available` e fica fora de `incomes.transactions` e de `expenses.accountDebits`
 
 #### Scenario: Um dono falha nas faturas
 - **WHEN** a consulta de faturas falha para um dono
@@ -79,11 +79,11 @@ O sistema SHALL, quando a consulta de um dono falhar e a de outro tiver sucesso,
 - **THEN** o sistema responde 502 no formato padrão de erro
 
 ### Requirement: Resumo de expenses
-O sistema SHALL devolver em `GET /summary` a seção `expenses`, com as partes `owed` e `transactions`. Cada parte SHALL conter `total`, com `value` e `currencyCode`, e `detail`, um mapa de nome do dono para a lista dele.
+O sistema SHALL devolver em `GET /summary` a seção `expenses`, com as partes `owed`, `transactions` e `accountDebits`. Cada parte SHALL conter `total`, com `value` e `currencyCode`, e `detail`, um mapa de nome do dono para a lista dele.
 
 #### Scenario: Resumo dos dois donos
 - **WHEN** o cliente chama `GET /summary` e a consulta tem sucesso para todos os donos
-- **THEN** `expenses.owed.detail` e `expenses.transactions.detail` têm uma entrada por dono e `incomes` continua na resposta
+- **THEN** `expenses.owed.detail`, `expenses.transactions.detail` e `expenses.accountDebits.detail` têm uma entrada por dono e `incomes` continua na resposta
 
 ### Requirement: Owed soma faturas com vencimento no período
 O sistema SHALL compor `expenses.owed` com as faturas em BRL das contas `CREDIT` em BRL cujo `dueDate` esteja entre `dateFrom` e o último dia do mês de `dateTo`. Cada fatura SHALL ter `id`, `accountId`, `name` do cartão, `dueDate`, `totalAmount` e `currencyCode`, e `total.value` SHALL somar o `totalAmount`. O sistema SHALL percorrer todas as páginas de faturas de cada cartão.
@@ -176,3 +176,40 @@ O sistema SHALL incluir `installment`, com `number` e `total`, em cada compra de
 #### Scenario: Informação de parcela incompleta
 - **WHEN** a Pluggy informa só o número da parcela, sem o total
 - **THEN** a compra não traz o campo `installment`
+
+### Requirement: AccountDebits lista saídas do período
+O sistema SHALL compor `expenses.accountDebits` com transações de tipo `DEBIT` em BRL, com valor informado, das contas `BANK` em BRL, no mesmo período de `incomes.transactions`. Cada saída SHALL ter `id`, `description`, `amount`, `currencyCode`, `date` e `accountId`, e `total.value` SHALL somar o `amount` delas. O sistema SHALL usar a mesma consulta de transações de cada conta que alimenta `incomes.transactions`.
+
+#### Scenario: Saída do mês corrente
+- **WHEN** o cliente chama `GET /summary` sem `dateFrom` e `dateTo`, e uma conta `BANK` tem uma transação `DEBIT` em BRL no mês corrente
+- **THEN** a transação aparece em `expenses.accountDebits` do dono, com `date` e `accountId`, e entra no total
+
+#### Scenario: Período informado
+- **WHEN** o cliente chama `GET /summary` com `dateFrom` e `dateTo`
+- **THEN** `expenses.accountDebits` e `incomes.transactions` cobrem o mesmo intervalo
+
+#### Scenario: Entrada, outra moeda ou sem valor
+- **WHEN** uma transação de conta `BANK` é `CREDIT`, está em moeda diferente de BRL ou não tem `amount`
+- **THEN** ela não aparece em `expenses.accountDebits`
+
+#### Scenario: Cartão de crédito
+- **WHEN** um dono tem conta `CREDIT`
+- **THEN** as transações dessa conta não aparecem em `expenses.accountDebits`
+
+#### Scenario: Uma consulta por conta
+- **WHEN** o resumo monta `incomes.transactions` e `expenses.accountDebits`
+- **THEN** o sistema consulta as transações de cada conta `BANK` uma única vez
+
+### Requirement: Saídas com valor positivo
+O sistema SHALL devolver o `amount` de cada saída de `expenses.accountDebits` como valor positivo, seja qual for o sinal informado pela Pluggy.
+
+#### Scenario: Débito com sinal negativo
+- **WHEN** a Pluggy devolve um `DEBIT` em BRL com `amount` de -12.50
+- **THEN** a saída traz `amount` 12.50 e o total soma 12.50
+
+### Requirement: Saídas são o débito bruto
+O sistema SHALL NOT excluir de `expenses.accountDebits` pagamentos de fatura de cartão nem transferências entre contas dos donos.
+
+#### Scenario: Pagamento de fatura
+- **WHEN** uma conta `BANK` tem um `DEBIT` de pagamento de fatura de cartão no período
+- **THEN** a transação aparece em `expenses.accountDebits` e entra no total
